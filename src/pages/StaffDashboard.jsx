@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   UserCheck, UserPlus, Calendar, Clock, CheckCircle2, XCircle,
   AlertCircle, AlertTriangle, FileText, Download, ShieldAlert, Info,
-  ArrowRight, LogIn, RefreshCw
+  ArrowRight, LogIn, RefreshCw, Edit, Trash2, Plus, X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
@@ -23,8 +23,8 @@ export default function StaffDashboard() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [session, setSession] = useState('Morning');
 
-  // ========= PHASE 2: DASHBOARD (after class confirmed) =========
-  const [activeTab, setActiveTab] = useState('attendance');
+  // ========= PHASE 2: DASHBOARD TABS =========
+  const [activeTab, setActiveTab] = useState('attendance'); // attendance, students, timetable, exam
 
   // Student Attendance List & Status
   const [students, setStudents] = useState([]);
@@ -34,23 +34,44 @@ export default function StaffDashboard() {
   const [feedback, setFeedback] = useState(null);
   const [timeRestrictedError, setTimeRestrictedError] = useState('');
 
-  // Add Student Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newStudent, setNewStudent] = useState({
+  // Modals State
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+
+  const [studentForm, setStudentForm] = useState({
     registerNumber: '', name: '',
     department: 'Computer Science & Engineering',
     year: '3rd Year', classSection: 'CSE-A',
     parentName: '', parentMobile: '', email: ''
   });
 
-  // Timetables
+  // Timetables & Exam Schedules
   const [timetables, setTimetables] = useState([]);
+  const [examTimetables, setExamTimetables] = useState([]);
 
-  // Only fetch data AFTER class is confirmed
+  // Add Timetable Modal State
+  const [showAddTtModal, setShowAddTtModal] = useState(false);
+  const [newTt, setNewTt] = useState({
+    dayOfWeek: 'Monday', sessionTime: '09:00 - 10:00 AM',
+    subject: 'Database Management Systems', facultyName: user?.name || 'Prof. A. Kumar', room: 'Lab 1'
+  });
+
+  // Add Exam Modal State
+  const [showAddExamModal, setShowAddExamModal] = useState(false);
+  const [newExam, setNewExam] = useState({
+    examDate: new Date().toISOString().split('T')[0],
+    subject: 'Database Management Systems',
+    examTime: '10:00 AM - 01:00 PM',
+    semester: 'Semester 5',
+    examHall: 'Main Exam Hall A'
+  });
+
   useEffect(() => {
     if (classConfirmed) {
       fetchClassStudents();
       fetchTimetables();
+      fetchExamTimetables();
     }
   }, [classConfirmed]);
 
@@ -65,6 +86,7 @@ export default function StaffDashboard() {
     setStudents([]);
     setAttendanceRecords({});
     setTimetables([]);
+    setExamTimetables([]);
     setFeedback(null);
     setTimeRestrictedError('');
     setActiveTab('attendance');
@@ -104,6 +126,15 @@ export default function StaffDashboard() {
       if (res.data.success) setTimetables(res.data.timetables);
     } catch (err) {
       console.error('Error fetching timetables:', err);
+    }
+  };
+
+  const fetchExamTimetables = async () => {
+    try {
+      const res = await api.get(`/timetables/exam?department=${encodeURIComponent(department)}&year=${encodeURIComponent(year)}&classSection=${encodeURIComponent(classSection)}`);
+      if (res.data.success) setExamTimetables(res.data.examTimetables);
+    } catch (err) {
+      console.error('Error fetching exam timetables:', err);
     }
   };
 
@@ -170,22 +201,124 @@ export default function StaffDashboard() {
     }
   };
 
+  // Student CRUD
+  const openAddStudentModal = () => {
+    setStudentForm({
+      registerNumber: '', name: '',
+      department: department,
+      year: year, classSection: classSection,
+      parentName: '', parentMobile: '', email: ''
+    });
+    setShowAddStudentModal(true);
+  };
+
+  const openEditStudentModal = (std) => {
+    setEditingStudent(std);
+    setStudentForm({
+      registerNumber: std.register_number,
+      name: std.name,
+      department: std.department || department,
+      year: std.year || year,
+      classSection: std.class_section || classSection,
+      parentName: std.parent_name || '',
+      parentMobile: std.parent_mobile || '',
+      email: std.email || ''
+    });
+    setShowEditStudentModal(true);
+  };
+
   const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post('/students', newStudent);
+      const res = await api.post('/students', studentForm);
       if (res.data.success) {
-        setShowAddModal(false);
-        setNewStudent({
-          registerNumber: '', name: '',
-          department: 'Computer Science & Engineering',
-          year: '3rd Year', classSection: 'CSE-A',
-          parentName: '', parentMobile: '', email: ''
-        });
+        setShowAddStudentModal(false);
         fetchClassStudents();
+        setFeedback({ type: 'success', message: 'New student added successfully!' });
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to add student');
+    }
+  };
+
+  const handleEditStudentSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    try {
+      const res = await api.put(`/students/${editingStudent.id}`, studentForm);
+      if (res.data.success) {
+        setShowEditStudentModal(false);
+        setEditingStudent(null);
+        fetchClassStudents();
+        setFeedback({ type: 'success', message: 'Student details updated successfully!' });
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update student');
+    }
+  };
+
+  const handleDeleteStudent = async (studentId, studentName) => {
+    if (!window.confirm(`Are you sure you want to delete student "${studentName}"?`)) return;
+    try {
+      const res = await api.delete(`/students/${studentId}`);
+      if (res.data.success) {
+        fetchClassStudents();
+        setFeedback({ type: 'success', message: `Student "${studentName}" removed.` });
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete student');
+    }
+  };
+
+  // Timetable CRUD
+  const handleAddTimetableSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/timetables/class', {
+        department, year, classSection, ...newTt
+      });
+      if (res.data.success) {
+        setShowAddTtModal(false);
+        fetchTimetables();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add timetable entry');
+    }
+  };
+
+  const handleDeleteTimetable = async (ttId) => {
+    if (!window.confirm('Are you sure you want to delete this timetable slot?')) return;
+    try {
+      const res = await api.delete(`/timetables/class/${ttId}`);
+      if (res.data.success) fetchTimetables();
+    } catch (err) {
+      alert('Failed to delete timetable slot');
+    }
+  };
+
+  // Exam Schedule CRUD
+  const handleAddExamSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/timetables/exam', {
+        department, year, classSection, ...newExam
+      });
+      if (res.data.success) {
+        setShowAddExamModal(false);
+        fetchExamTimetables();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add exam entry');
+    }
+  };
+
+  const handleDeleteExam = async (examId) => {
+    if (!window.confirm('Are you sure you want to delete this exam schedule entry?')) return;
+    try {
+      const res = await api.delete(`/timetables/exam/${examId}`);
+      if (res.data.success) fetchExamTimetables();
+    } catch (err) {
+      alert('Failed to delete exam entry');
     }
   };
 
@@ -214,7 +347,6 @@ export default function StaffDashboard() {
   const absentCount = students.filter(s => attendanceRecords[s.id] === 'Absent').length;
   const notTakenCount = students.filter(s => !attendanceRecords[s.id] || attendanceRecords[s.id] === 'Not Taken').length;
 
-  // Short department label for display
   const deptShort = department.includes('Computer') ? 'CSE' : department.includes('Information') ? 'IT' : department.includes('Electronics') ? 'ECE' : 'ME';
 
   const tabBtn = (key, label, Icon) => (
@@ -231,7 +363,7 @@ export default function StaffDashboard() {
   );
 
   // =============================================
-  // PHASE 1 — CLASS SELECTION GATE (Home Page)
+  // PHASE 1 — CLASS SELECTION GATE
   // =============================================
   if (!classConfirmed) {
     return (
@@ -250,7 +382,7 @@ export default function StaffDashboard() {
                 Welcome, <span className="text-emerald-700">{user?.name}</span>
               </h1>
               <p className="text-slate-500 text-sm mt-2 max-w-md mx-auto">
-                Select your class details below to begin. Once confirmed, you'll be able to mark attendance, manage students, and view the class timetable.
+                Select your department & class details below to manage attendance, edit student records, and update timetables.
               </p>
             </div>
 
@@ -260,7 +392,7 @@ export default function StaffDashboard() {
               <div className="flex items-center gap-3 mb-2">
                 <span className="w-8 h-8 rounded-full bg-emerald-600 text-white text-sm font-black flex items-center justify-center shadow-md">1</span>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Select Your Class & Session</h2>
+                  <h2 className="text-lg font-black text-slate-900">Select Department & Class Section</h2>
                   <p className="text-xs text-slate-500">Choose department, year, section, subject, date and session to proceed.</p>
                 </div>
               </div>
@@ -306,6 +438,7 @@ export default function StaffDashboard() {
                     <option value="Operating Systems">Operating Systems</option>
                     <option value="Web Technology Lab">Web Technology Lab</option>
                     <option value="Computer Networks">Computer Networks</option>
+                    <option value="Software Engineering">Software Engineering</option>
                   </select>
                 </div>
 
@@ -325,19 +458,28 @@ export default function StaffDashboard() {
                 </div>
               </div>
 
-              {/* Confirm Button */}
-              <button
-                onClick={handleConfirmClass}
-                className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/25 transition-all hover:shadow-2xl hover:shadow-emerald-600/30 mt-4"
-              >
-                <LogIn className="w-5 h-5" />
-                Proceed to Class Portal
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              {/* Confirm & Quick Edit Buttons */}
+              <div className="space-y-3 mt-4">
+                <button
+                  onClick={handleConfirmClass}
+                  className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/25 transition-all hover:shadow-2xl hover:shadow-emerald-600/30"
+                >
+                  <LogIn className="w-5 h-5" />
+                  Proceed to Faculty Management Portal
+                  <ArrowRight className="w-5 h-5" />
+                </button>
 
-              <p className="text-center text-[11px] text-slate-400 mt-2">
-                You can change your class selection at any time from within the portal.
-              </p>
+                <button
+                  onClick={() => {
+                    handleConfirmClass();
+                    setActiveTab('students');
+                  }}
+                  className="w-full py-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-extrabold text-sm border-2 border-blue-200 flex items-center justify-center gap-2 transition-all shadow-sm"
+                >
+                  <Edit className="w-4 h-4" />
+                  Direct Edit & Manage Student Logins / Passwords
+                </button>
+              </div>
             </div>
           </div>
         </main>
@@ -346,7 +488,7 @@ export default function StaffDashboard() {
   }
 
   // =============================================
-  // PHASE 2 — FULL DASHBOARD (after confirmed)
+  // PHASE 2 — FULL DASHBOARD
   // =============================================
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -354,33 +496,32 @@ export default function StaffDashboard() {
 
       <main className="max-w-7xl mx-auto w-full p-6 flex-1 space-y-6">
 
-        {/* Staff Header — shows confirmed class info + change button */}
+        {/* Staff Header — shows confirmed class info + tab options */}
         <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/25">
               <UserCheck className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900">Faculty Class Portal</h2>
+              <h2 className="text-xl font-black text-slate-900">Faculty Management Portal</h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 <span className="font-bold text-slate-800">{user?.name}</span> •{' '}
                 <span className="text-emerald-700 font-bold">{deptShort} → {classSection}</span> •{' '}
-                <span className="text-slate-600">{subject}</span> •{' '}
-                <span className="text-slate-600">{session} ({date})</span>
+                <span className="text-slate-600">{subject}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Change Class Button */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={handleChangeClass}
-              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-2 border border-slate-200 transition">
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-2 border border-slate-200 transition mr-1">
               <RefreshCw className="w-3.5 h-3.5" /> Change Class
             </button>
 
-            {tabBtn('attendance', 'Take Attendance', Calendar)}
-            {tabBtn('students', 'Student Management', UserPlus)}
+            {tabBtn('attendance', 'Mark Attendance', Calendar)}
+            {tabBtn('students', 'Manage Students', UserPlus)}
             {tabBtn('timetable', 'Class Timetable', Clock)}
+            {tabBtn('exam', 'Exam Schedule', FileText)}
           </div>
         </div>
 
@@ -420,34 +561,13 @@ export default function StaffDashboard() {
 
             {/* Mark Attendance Table */}
             <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center">✓</span>
-                <h3 className="text-sm font-black text-slate-800">Mark Student Attendance</h3>
-              </div>
-
-              {/* Stats Bar */}
-              <div className="flex flex-wrap gap-3 ml-8 mb-3">
-                <div className="flex items-center gap-2 text-xs font-bold">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
-                  <span className="text-slate-500">Not Taken: <span className="text-slate-700">{notTakenCount}</span></span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center">✓</span>
+                  <h3 className="text-sm font-black text-slate-800">Mark Student Attendance — {subject} ({session})</h3>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-bold">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span className="text-slate-500">Present: <span className="text-emerald-700">{presentCount}</span></span>
-                </div>
-                <div className="flex items-center gap-2 text-xs font-bold">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                  <span className="text-slate-500">Absent: <span className="text-red-700">{absentCount}</span></span>
-                </div>
-              </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-xs text-slate-500">
-                  Class: <span className="font-bold text-slate-700">{classSection}</span> •
-                  Total Enrolled: <span className="font-bold text-slate-700">{students.length}</span> Students
-                </p>
-
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button type="button" onClick={markAllPresent}
                     className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition">
                     ✓ Mark All Present
@@ -459,6 +579,22 @@ export default function StaffDashboard() {
                 </div>
               </div>
 
+              {/* Stats Bar */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2 text-xs font-bold bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                  <span className="text-slate-500">Not Taken: <span className="text-slate-800">{notTakenCount}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <span className="text-emerald-700">Present: <span>{presentCount}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold bg-red-50 px-3 py-1.5 rounded-xl border border-red-200">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                  <span className="text-red-700">Absent: <span>{absentCount}</span></span>
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b-2 border-slate-200 text-slate-600 font-black uppercase tracking-wide">
@@ -467,14 +603,15 @@ export default function StaffDashboard() {
                       <th className="p-3.5">Register No</th>
                       <th className="p-3.5">Student Name</th>
                       <th className="p-3.5">Parent Contact</th>
-                      <th className="p-3.5 rounded-r-xl text-center">Attendance Status</th>
+                      <th className="p-3.5 text-center">Attendance Status</th>
+                      <th className="p-3.5 rounded-r-xl text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {loading ? (
-                      <tr><td colSpan="5" className="text-center py-8 text-slate-400">Loading student list...</td></tr>
+                      <tr><td colSpan="6" className="text-center py-8 text-slate-400">Loading student list...</td></tr>
                     ) : students.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center py-8 text-slate-400">No students enrolled in this class.</td></tr>
+                      <tr><td colSpan="6" className="text-center py-8 text-slate-400">No students enrolled in this class. Use "Manage Students" tab to add.</td></tr>
                     ) : (
                       students.map((student, idx) => {
                         const status = attendanceRecords[student.id] || 'Not Taken';
@@ -506,6 +643,15 @@ export default function StaffDashboard() {
                                 </button>
                               </div>
                             </td>
+                            <td className="p-3.5 text-right">
+                              <button
+                                onClick={() => openEditStudentModal(student)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                title="Edit Student Mismatches"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })
@@ -520,14 +666,6 @@ export default function StaffDashboard() {
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center">▶</span>
                 <h3 className="text-sm font-black text-slate-800">Submit Attendance Report</h3>
-              </div>
-
-              <div className="ml-8 mb-5 p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-start gap-3">
-                <Info className="w-4 h-4 shrink-0 text-blue-600 mt-0.5" />
-                <div>
-                  <span className="font-black block mb-1">📋 How SMS Works</span>
-                  <span>After you submit, the attendance report is sent to the <strong>Head Department</strong>. The Head will review absent students and <strong>send SMS alerts to parents</strong>.</span>
-                </div>
               </div>
 
               <div className="ml-8 flex items-center gap-4">
@@ -547,38 +685,39 @@ export default function StaffDashboard() {
           </div>
         )}
 
-        {/* TAB 2: STUDENT MANAGEMENT */}
+        {/* TAB 2: STUDENT MANAGEMENT (CREATE, EDIT, DELETE) */}
         {activeTab === 'students' && (
           <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-emerald-600" /> Student Roster — {classSection}
+                  <UserPlus className="w-5 h-5 text-emerald-600" /> Student Records Management — {classSection}
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">{deptShort} • {year} • {classSection} — {students.length} Students Enrolled</p>
               </div>
 
-              <button type="button" onClick={() => setShowAddModal(true)}
+              <button type="button" onClick={openAddStudentModal}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition self-start sm:self-auto">
-                <UserPlus className="w-4 h-4" /> Add New Student
+                <Plus className="w-4 h-4" /> Add New Student
               </button>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50 border-b-2 border-slate-200 text-slate-600 font-black uppercase tracking-wide">
                   <tr>
                     <th className="p-3.5 rounded-l-xl">#</th>
                     <th className="p-3.5">Register Number</th>
                     <th className="p-3.5">Student Name</th>
                     <th className="p-3.5">Email</th>
-                    <th className="p-3.5">Parent Name</th>
-                    <th className="p-3.5 rounded-r-xl">Parent Mobile</th>
+                    <th className="p-3.5">Department & Class</th>
+                    <th className="p-3.5">Parent Contact</th>
+                    <th className="p-3.5 rounded-r-xl text-right">Actions (Edit / Delete)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {students.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center py-8 text-slate-400">No students in this class.</td></tr>
+                    <tr><td colSpan="7" className="text-center py-8 text-slate-400">No students found for this department & section. Click "Add New Student" to enroll.</td></tr>
                   ) : (
                     students.map((student, idx) => (
                       <tr key={student.id} className="hover:bg-slate-50 transition">
@@ -586,8 +725,22 @@ export default function StaffDashboard() {
                         <td className="p-3.5 font-mono font-black text-emerald-700">{student.register_number}</td>
                         <td className="p-3.5 font-bold text-slate-900">{student.name}</td>
                         <td className="p-3.5 text-slate-500">{student.email}</td>
-                        <td className="p-3.5 text-slate-600">{student.parent_name}</td>
-                        <td className="p-3.5 font-mono font-bold text-emerald-700">{student.parent_mobile}</td>
+                        <td className="p-3.5 text-slate-600 font-medium">{student.department} ({student.class_section})</td>
+                        <td className="p-3.5 font-mono font-bold text-slate-800">{student.parent_name} ({student.parent_mobile})</td>
+                        <td className="p-3.5 text-right space-x-2">
+                          <button
+                            onClick={() => openEditStudentModal(student)}
+                            className="px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold border border-blue-200 transition inline-flex items-center gap-1"
+                          >
+                            <Edit className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStudent(student.id, student.name)}
+                            className="px-3 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-bold border border-red-200 transition inline-flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -597,29 +750,36 @@ export default function StaffDashboard() {
           </div>
         )}
 
-        {/* TAB 3: TIMETABLE VIEW */}
+        {/* TAB 3: CLASS TIMETABLE MANAGEMENT */}
         {activeTab === 'timetable' && (
           <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-emerald-600" /> Class Timetable — {classSection}
+                  <Clock className="w-5 h-5 text-emerald-600" /> Manage Class Timetable — {classSection}
                 </h3>
                 <p className="text-xs text-slate-500">{deptShort} • {year} • {classSection}</p>
               </div>
 
-              <button onClick={downloadTimetablePDF}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition self-start sm:self-auto">
-                <Download className="w-4 h-4" /> Download Timetable PDF
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowAddTtModal(true)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition">
+                  <Plus className="w-4 h-4" /> Add Timetable Slot
+                </button>
+
+                <button onClick={downloadTimetablePDF}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-2 border border-slate-200 transition">
+                  <Download className="w-4 h-4" /> Export PDF
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {timetables.length === 0 ? (
-                <div className="col-span-full text-center py-8 text-slate-400 text-xs">No timetable entries for this class.</div>
+                <div className="col-span-full text-center py-8 text-slate-400 text-xs">No timetable entries for this class. Click "Add Timetable Slot" to create one.</div>
               ) : (
                 timetables.map((t) => (
-                  <div key={t.id} className="bg-slate-50 border border-slate-200 hover:border-emerald-300 p-5 rounded-2xl space-y-2 transition">
+                  <div key={t.id} className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2 relative group hover:border-emerald-300 transition">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-emerald-700 uppercase tracking-wider">{t.day_of_week}</span>
                       <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-mono">{t.session_time}</span>
@@ -629,6 +789,14 @@ export default function StaffDashboard() {
                       <span>Faculty: {t.faculty_name}</span>
                       <span className="text-emerald-600 font-bold">{t.room}</span>
                     </div>
+
+                    <button
+                      onClick={() => handleDeleteTimetable(t.id)}
+                      className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-600 rounded-md transition opacity-0 group-hover:opacity-100"
+                      title="Delete Slot"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 ))
               )}
@@ -636,19 +804,81 @@ export default function StaffDashboard() {
           </div>
         )}
 
+        {/* TAB 4: EXAM SCHEDULE MANAGEMENT */}
+        {activeTab === 'exam' && (
+          <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-emerald-600" /> Manage Exam Schedule — {classSection}
+                </h3>
+                <p className="text-xs text-slate-500">{deptShort} • Semester Examination Schedule</p>
+              </div>
+
+              <button onClick={() => setShowAddExamModal(true)}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition">
+                <Plus className="w-4 h-4" /> Add Exam Entry
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b-2 border-slate-200 text-slate-600 font-black uppercase tracking-wide">
+                  <tr>
+                    <th className="p-3.5 rounded-l-xl">Exam Date</th>
+                    <th className="p-3.5">Subject</th>
+                    <th className="p-3.5">Exam Time</th>
+                    <th className="p-3.5">Semester</th>
+                    <th className="p-3.5">Exam Hall</th>
+                    <th className="p-3.5 rounded-r-xl text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {examTimetables.length === 0 ? (
+                    <tr><td colSpan="6" className="text-center py-8 text-slate-400">No exam schedule entries created yet. Click "Add Exam Entry" to add one.</td></tr>
+                  ) : (
+                    examTimetables.map((exam) => (
+                      <tr key={exam.id} className="hover:bg-slate-50 transition">
+                        <td className="p-3.5 font-mono font-black text-emerald-700">{exam.exam_date}</td>
+                        <td className="p-3.5 font-bold text-slate-900">{exam.subject}</td>
+                        <td className="p-3.5 font-mono text-slate-600">{exam.exam_time}</td>
+                        <td className="p-3.5 text-slate-600">{exam.semester}</td>
+                        <td className="p-3.5 font-bold text-blue-700">{exam.exam_hall || 'Main Hall'}</td>
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => handleDeleteExam(exam.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition"
+                            title="Delete Exam Slot"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {/* ADD STUDENT MODAL */}
-      {showAddModal && (
+      {/* MODAL 1: ADD NEW STUDENT */}
+      {showAddStudentModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4">
+          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative">
+            <button onClick={() => setShowAddStudentModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
                 <UserPlus className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-lg font-black text-slate-900">Add New Student to {classSection}</h3>
-                <p className="text-xs text-slate-500">Enter student details including parent mobile for SMS.</p>
+                <p className="text-xs text-slate-500">Create new student record with login credentials.</p>
               </div>
             </div>
 
@@ -657,52 +887,304 @@ export default function StaffDashboard() {
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Register Number</label>
                   <input type="text" required placeholder="2023CSE004"
-                    value={newStudent.registerNumber}
-                    onChange={(e) => setNewStudent({ ...newStudent, registerNumber: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 font-medium" />
+                    value={studentForm.registerNumber}
+                    onChange={(e) => setStudentForm({ ...studentForm, registerNumber: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Full Name</label>
-                  <input type="text" required placeholder="John Doe"
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 font-medium" />
+                  <input type="text" required placeholder="Student Name"
+                    value={studentForm.name}
+                    onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Email</label>
                 <input type="email" required placeholder="student@college.edu"
-                  value={newStudent.email}
-                  onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 font-medium" />
+                  value={studentForm.email}
+                  onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">🔑 Login Password (Set by Staff — student cannot change this)</label>
+                <input type="password" required placeholder="Set a login password for the student"
+                  value={studentForm.password || ''}
+                  onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                <p className="text-[11px] text-slate-400 mt-1">Only staff can set or reset student passwords. Share this with the student directly.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Full Name</label>
-                  <input type="text" required placeholder="Robert Doe"
-                    value={newStudent.parentName}
-                    onChange={(e) => setNewStudent({ ...newStudent, parentName: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 font-medium" />
+                  <input type="text" required placeholder="Parent Name"
+                    value={studentForm.parentName}
+                    onChange={(e) => setStudentForm({ ...studentForm, parentName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Mobile (SMS)</label>
                   <input type="text" required placeholder="+19876543219"
-                    value={newStudent.parentMobile}
-                    onChange={(e) => setNewStudent({ ...newStudent, parentMobile: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 font-medium" />
+                    value={studentForm.parentMobile}
+                    onChange={(e) => setStudentForm({ ...studentForm, parentMobile: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAddModal(false)}
+                <button type="button" onClick={() => setShowAddStudentModal(false)}
                   className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
                   Cancel
                 </button>
                 <button type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/25 transition">
-                  Save Student Record
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md transition">
+                  Create Student
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: EDIT STUDENT DETAILS (FIX MISMATCHES) */}
+      {showEditStudentModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative">
+            <button onClick={() => setShowEditStudentModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md">
+                <Edit className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Edit Student Mismatches</h3>
+                <p className="text-xs text-slate-500">Fix student credentials, register number, department or parent contact.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleEditStudentSubmit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Register Number</label>
+                  <input type="text" required
+                    value={studentForm.registerNumber}
+                    onChange={(e) => setStudentForm({ ...studentForm, registerNumber: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Full Name</label>
+                  <input type="text" required
+                    value={studentForm.name}
+                    onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Email</label>
+                <input type="email" required
+                  value={studentForm.email}
+                  onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">🔑 Reset Password (leave blank to keep current)</label>
+                <input type="password"
+                  placeholder="••••••••  (leave blank to keep current password)"
+                  value={studentForm.password || ''}
+                  onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                <p className="text-[11px] text-slate-400 mt-1">Only staff can set or reset student passwords. Students cannot change their own password.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Full Name</label>
+                  <input type="text" required
+                    value={studentForm.parentName}
+                    onChange={(e) => setStudentForm({ ...studentForm, parentName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Mobile (SMS)</label>
+                  <input type="text" required
+                    value={studentForm.parentMobile}
+                    onChange={(e) => setStudentForm({ ...studentForm, parentMobile: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setShowEditStudentModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ADD TIMETABLE SLOT */}
+      {showAddTtModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative">
+            <button onClick={() => setShowAddTtModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Add Class Timetable Slot</h3>
+                <p className="text-xs text-slate-500">Create schedule entry for {classSection}.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleAddTimetableSubmit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Day of Week</label>
+                  <select value={newTt.dayOfWeek} onChange={(e) => setNewTt({ ...newTt, dayOfWeek: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium">
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Session Time</label>
+                  <input type="text" required placeholder="09:00 - 10:00 AM"
+                    value={newTt.sessionTime}
+                    onChange={(e) => setNewTt({ ...newTt, sessionTime: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Subject Name</label>
+                <input type="text" required placeholder="e.g. Database Management Systems"
+                  value={newTt.subject}
+                  onChange={(e) => setNewTt({ ...newTt, subject: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Faculty Name</label>
+                  <input type="text" required placeholder="Prof. A. Kumar"
+                    value={newTt.facultyName}
+                    onChange={(e) => setNewTt({ ...newTt, facultyName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Classroom / Lab</label>
+                  <input type="text" required placeholder="Lab 1 / Room 302"
+                    value={newTt.room}
+                    onChange={(e) => setNewTt({ ...newTt, room: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setShowAddTtModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md transition">
+                  Save Slot
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ADD EXAM ENTRY */}
+      {showAddExamModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative">
+            <button onClick={() => setShowAddExamModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Add Exam Schedule Entry</h3>
+                <p className="text-xs text-slate-500">Create examination timetable entry for students.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleAddExamSubmit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Exam Date</label>
+                  <input type="date" required
+                    value={newExam.examDate}
+                    onChange={(e) => setNewExam({ ...newExam, examDate: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Exam Timing</label>
+                  <input type="text" required placeholder="10:00 AM - 01:00 PM"
+                    value={newExam.examTime}
+                    onChange={(e) => setNewExam({ ...newExam, examTime: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Subject</label>
+                <input type="text" required placeholder="Database Management Systems"
+                  value={newExam.subject}
+                  onChange={(e) => setNewExam({ ...newExam, subject: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Semester</label>
+                  <input type="text" required placeholder="Semester 5"
+                    value={newExam.semester}
+                    onChange={(e) => setNewExam({ ...newExam, semester: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Examination Hall</label>
+                  <input type="text" required placeholder="Main Exam Hall A"
+                    value={newExam.examHall}
+                    onChange={(e) => setNewExam({ ...newExam, examHall: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setShowAddExamModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md transition">
+                  Save Exam Entry
                 </button>
               </div>
             </form>

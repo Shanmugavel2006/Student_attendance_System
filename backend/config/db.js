@@ -207,45 +207,36 @@ export const mockStore = {
   ],
 
   attendance: [
-    {
-      id: 1,
-      student_id: 1,
-      register_number: "2023CSE001",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A",
-      subject: "Database Management Systems",
-      attendance_date: "2026-08-10",
-      session: "Morning",
-      status: "Present",
-      marked_by: 2
-    },
-    {
-      id: 2,
-      student_id: 2,
-      register_number: "2023CSE002",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A",
-      subject: "Database Management Systems",
-      attendance_date: "2026-08-10",
-      session: "Morning",
-      status: "Present",
-      marked_by: 2
-    },
-    {
-      id: 3,
-      student_id: 3,
-      register_number: "2023CSE003",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A",
-      subject: "Database Management Systems",
-      attendance_date: "2026-08-10",
-      session: "Morning",
-      status: "Absent",
-      marked_by: 2
-    }
+    // Student 1 (Alex Johnson - 2023CSE001)
+    // July 2026
+    { id: 1, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Database Management Systems", attendance_date: "2026-07-27", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 2, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Operating Systems", attendance_date: "2026-07-27", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 3, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Computer Networks", attendance_date: "2026-07-28", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 4, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Digital Forensics", attendance_date: "2026-07-28", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 5, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Software Engineering", attendance_date: "2026-07-29", session: "Morning", status: "Absent", marked_by: 2 },
+    { id: 6, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Cloud Computing", attendance_date: "2026-07-29", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 7, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Data Mining And Visualisation", attendance_date: "2026-07-30", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 8, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Web Technology Lab", attendance_date: "2026-07-30", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 9, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Operating Systems", attendance_date: "2026-07-31", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 10, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Database Management Systems", attendance_date: "2026-07-31", session: "Afternoon", status: "Present", marked_by: 2 },
+
+    // August 2026
+    { id: 11, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Database Management Systems", attendance_date: "2026-08-03", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 12, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Operating Systems", attendance_date: "2026-08-03", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 13, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Computer Networks", attendance_date: "2026-08-04", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 14, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Web Technology Lab", attendance_date: "2026-08-04", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 15, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Software Engineering", attendance_date: "2026-08-05", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 16, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Cloud Computing", attendance_date: "2026-08-05", session: "Afternoon", status: "Absent", marked_by: 2 },
+    { id: 17, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Data Mining And Visualisation", attendance_date: "2026-08-06", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 18, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Digital Forensics", attendance_date: "2026-08-06", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 19, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Software Engineering", attendance_date: "2026-08-07", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 20, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Cloud Computing", attendance_date: "2026-08-07", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 21, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Database Management Systems", attendance_date: "2026-08-10", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 22, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Operating Systems", attendance_date: "2026-08-10", session: "Afternoon", status: "Present", marked_by: 2 },
+    { id: 23, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Computer Networks", attendance_date: "2026-08-11", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 24, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Data Mining And Visualisation", attendance_date: "2026-08-11", session: "Afternoon", status: "Absent", marked_by: 2 },
+    { id: 25, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Database Management Systems", attendance_date: "2026-08-12", session: "Morning", status: "Present", marked_by: 2 },
+    { id: 26, student_id: 1, register_number: "2023CSE001", department: "Computer Science & Engineering", year: "3rd Year", class_section: "CSE-A", subject: "Software Engineering", attendance_date: "2026-08-12", session: "Afternoon", status: "Present", marked_by: 2 }
   ],
 
   sms_logs: []

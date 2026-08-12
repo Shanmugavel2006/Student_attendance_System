@@ -38,12 +38,12 @@ export default function StaffLogin() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden font-sans">
       {/* Background Image Layer */}
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none"
+        className="absolute inset-0 bg-cover bg-center opacity-45 pointer-events-none"
         style={{ backgroundImage: `url('/images/staff_bg.png')` }}
       ></div>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-emerald-50/50 to-white/80 pointer-events-none"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/10 via-slate-900/15 to-emerald-950/20 pointer-events-none"></div>
 
-      <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="w-full max-w-md relative z-10">
         <Link to="/" className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-emerald-600 mb-6 transition">

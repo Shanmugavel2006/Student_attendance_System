@@ -7,6 +7,8 @@ import studentRoutes from './routes/studentRoutes.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
 import timetableRoutes from './routes/timetableRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import staffRoutes from './routes/staffRoutes.js';
+import { initializeDatabase } from './config/dbInit.js';
 
 dotenv.config();
 
@@ -31,8 +33,10 @@ app.use('/api/students', studentRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/timetables', timetableRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/staff', staffRoutes);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n🚀 Backend REST API running at http://localhost:${PORT}`);
   console.log(`📋 Health check: http://localhost:${PORT}/api/health\n`);
+  await initializeDatabase();
 });

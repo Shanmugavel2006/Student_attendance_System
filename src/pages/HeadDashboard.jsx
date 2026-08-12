@@ -4,7 +4,8 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ShieldCheck, PieChart as PieChartIcon, FileText, Send, Filter, Download,
-  CheckCircle2, XCircle, Users, AlertTriangle, Building, Bell, Info
+  CheckCircle2, XCircle, Users, AlertTriangle, Building, Bell, Info,
+  UserPlus, Edit, Trash2, KeyRound, X, UserCheck
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import jsPDF from 'jspdf';
@@ -30,12 +31,28 @@ export default function HeadDashboard() {
   const [smsSending, setSmsSending] = useState({});
   const [smsFeedback, setSmsFeedback] = useState({});
 
+  // Staff Management State
+  const [staffList, setStaffList] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [showEditStaffModal, setShowEditStaffModal] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [staffFeedback, setStaffFeedback] = useState(null);
+  const [staffForm, setStaffForm] = useState({
+    name: '', email: '', password: '', department: 'Computer Science & Engineering',
+    year: '3rd Year', classSection: 'CSE-A'
+  });
+
   useEffect(() => {
     fetchHeadStats();
     fetchSmsLogs();
   }, []);
 
   useEffect(() => { fetchReports(); }, [department, year, classSection, subject, date]);
+
+  useEffect(() => {
+    if (activeTab === 'staff') fetchStaffList();
+  }, [activeTab]);
 
   const fetchHeadStats = async () => {
     setLoading(true);
@@ -70,6 +87,104 @@ export default function HeadDashboard() {
       if (res.data.success) setSmsLogs(res.data.logs);
     } catch (err) {
       console.error('Error fetching SMS logs:', err);
+    }
+  };
+
+  const fetchStaffList = async () => {
+    setStaffLoading(true);
+    try {
+      const res = await api.get('/staff');
+      if (res.data.success) setStaffList(res.data.staff);
+    } catch (err) {
+      console.error('Error fetching staff:', err);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const resetStaffForm = () => {
+    setStaffForm({
+      name: '', email: '', password: '',
+      department: 'Computer Science & Engineering',
+      year: '3rd Year', classSection: 'CSE-A'
+    });
+  };
+
+  const handleAddStaffSubmit = async (e) => {
+    e.preventDefault();
+    setStaffFeedback(null);
+    try {
+      const res = await api.post('/staff', {
+        name: staffForm.name,
+        email: staffForm.email,
+        password: staffForm.password,
+        department: staffForm.department,
+        year: staffForm.year,
+        classSection: staffForm.classSection
+      });
+      if (res.data.success) {
+        setShowAddStaffModal(false);
+        resetStaffForm();
+        fetchStaffList();
+        fetchHeadStats();
+        setStaffFeedback({ type: 'success', message: res.data.message });
+        setTimeout(() => setStaffFeedback(null), 4000);
+      }
+    } catch (err) {
+      setStaffFeedback({ type: 'error', message: err.response?.data?.message || 'Failed to add staff member.' });
+    }
+  };
+
+  const handleEditStaffOpen = (staff) => {
+    setEditingStaff(staff);
+    setStaffForm({
+      name: staff.name,
+      email: staff.email,
+      password: '',
+      department: staff.department || 'Computer Science & Engineering',
+      year: staff.year || '3rd Year',
+      classSection: staff.class_section || 'CSE-A'
+    });
+    setShowEditStaffModal(true);
+  };
+
+  const handleEditStaffSubmit = async (e) => {
+    e.preventDefault();
+    setStaffFeedback(null);
+    try {
+      const res = await api.put(`/staff/${editingStaff.id}`, {
+        name: staffForm.name,
+        email: staffForm.email,
+        password: staffForm.password || undefined,
+        department: staffForm.department,
+        year: staffForm.year,
+        classSection: staffForm.classSection
+      });
+      if (res.data.success) {
+        setShowEditStaffModal(false);
+        setEditingStaff(null);
+        resetStaffForm();
+        fetchStaffList();
+        setStaffFeedback({ type: 'success', message: res.data.message });
+        setTimeout(() => setStaffFeedback(null), 4000);
+      }
+    } catch (err) {
+      setStaffFeedback({ type: 'error', message: err.response?.data?.message || 'Failed to update staff.' });
+    }
+  };
+
+  const handleDeleteStaff = async (staffMember) => {
+    if (!window.confirm(`Remove staff member "${staffMember.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await api.delete(`/staff/${staffMember.id}`);
+      if (res.data.success) {
+        fetchStaffList();
+        fetchHeadStats();
+        setStaffFeedback({ type: 'success', message: `"${staffMember.name}" removed successfully.` });
+        setTimeout(() => setStaffFeedback(null), 4000);
+      }
+    } catch (err) {
+      setStaffFeedback({ type: 'error', message: err.response?.data?.message || 'Failed to remove staff.' });
     }
   };
 
@@ -143,6 +258,80 @@ export default function HeadDashboard() {
     </button>
   );
 
+  const deptOptions = [
+    'Computer Science & Engineering',
+    'Information Technology',
+    'Electronics & Communication',
+    'Mechanical Engineering'
+  ];
+
+  const StaffFormFields = () => (
+    <div className="space-y-3 text-xs">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Full Name</label>
+          <input type="text" required placeholder="Prof. Suresh Kumar"
+            value={staffForm.name}
+            onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+        </div>
+        <div>
+          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Email Address</label>
+          <input type="email" required placeholder="staff@college.edu"
+            value={staffForm.email}
+            onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">
+          <KeyRound className="w-3 h-3" />
+          {showEditStaffModal ? 'New Password (leave blank to keep current)' : 'Login Password (set by Head)'}
+        </label>
+        <input type="password"
+          required={!showEditStaffModal}
+          placeholder={showEditStaffModal ? '••••••••  (leave blank to keep current)' : 'Set a secure password for staff login'}
+          value={staffForm.password}
+          onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+          className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+        <p className="text-[11px] text-slate-400 mt-1">
+          🔒 Only the Head can set or reset staff passwords. Staff cannot change their own password.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Department</label>
+        <select value={staffForm.department}
+          onChange={(e) => setStaffForm({ ...staffForm, department: e.target.value })}
+          className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500">
+          {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Assigned Year</label>
+          <select value={staffForm.year}
+            onChange={(e) => setStaffForm({ ...staffForm, year: e.target.value })}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500">
+            <option value="1st Year">1st Year</option>
+            <option value="2nd Year">2nd Year</option>
+            <option value="3rd Year">3rd Year</option>
+            <option value="4th Year">4th Year</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Class Section</label>
+          <input type="text" placeholder="CSE-A"
+            value={staffForm.classSection}
+            onChange={(e) => setStaffForm({ ...staffForm, classSection: e.target.value })}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <Header />
@@ -164,12 +353,25 @@ export default function HeadDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {tabBtn('overview', 'Overview & Stats', PieChartIcon)}
-            {tabBtn('reports', 'Attendance Reports + Send SMS', FileText)}
+            {tabBtn('staff', 'Manage Staff', UserCheck)}
+            {tabBtn('reports', 'Attendance Reports', FileText)}
             {tabBtn('sms_logs', 'SMS Audit Logs', Send)}
           </div>
         </div>
+
+        {/* Global Staff Feedback Toast */}
+        {staffFeedback && (
+          <div className={`p-4 rounded-2xl text-sm font-bold flex items-center gap-3 ${
+            staffFeedback.type === 'success'
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            {staffFeedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <XCircle className="w-5 h-5 shrink-0" />}
+            {staffFeedback.message}
+          </div>
+        )}
 
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
@@ -194,6 +396,10 @@ export default function HeadDashboard() {
                     <Building className="w-5 h-5" />
                   </div>
                 </div>
+                <button onClick={() => setActiveTab('staff')}
+                  className="mt-2 text-[11px] text-emerald-700 font-bold hover:underline">
+                  → Manage Staff Logins
+                </button>
               </div>
 
               <div className="bg-white border border-slate-200 shadow-sm p-5 rounded-3xl">
@@ -257,7 +463,6 @@ export default function HeadDashboard() {
                   )}
                 </div>
 
-                {/* Go to Reports */}
                 <button onClick={() => setActiveTab('reports')}
                   className="mt-4 w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-red-600/20 transition">
                   <Send className="w-3.5 h-3.5" /> Review & Send SMS to Parents
@@ -267,7 +472,100 @@ export default function HeadDashboard() {
           </div>
         )}
 
-        {/* TAB 2: REPORTS + SEND SMS */}
+        {/* TAB 2: MANAGE STAFF */}
+        {activeTab === 'staff' && (
+          <div className="space-y-6">
+            {/* Staff Info Banner */}
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3">
+              <Info className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+              <div>
+                <span className="font-black block mb-1">👮 Head Responsibility — Staff Enrollment</span>
+                <span>As Head of Department, only you can <strong>enroll new faculty staff</strong>, <strong>assign email & login passwords</strong>, <strong>update department assignments</strong>, and <strong>remove staff accounts</strong>. Staff members cannot create or change their own passwords.</span>
+              </div>
+            </div>
+
+            {/* Staff List Header */}
+            <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Faculty Staff Directory</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {staffList.length} staff member{staffList.length !== 1 ? 's' : ''} enrolled • Only Head can add/edit/remove
+                  </p>
+                </div>
+                <button
+                  onClick={() => { resetStaffForm(); setShowAddStaffModal(true); }}
+                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-red-600/20 transition"
+                >
+                  <UserPlus className="w-4 h-4" /> Enroll New Staff
+                </button>
+              </div>
+
+              {staffLoading ? (
+                <div className="text-center py-10 text-slate-400 text-sm">Loading staff list...</div>
+              ) : staffList.length === 0 ? (
+                <div className="text-center py-10">
+                  <UserCheck className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                  <p className="text-slate-400 text-sm font-medium">No staff enrolled yet.</p>
+                  <p className="text-slate-400 text-xs mt-1">Click "Enroll New Staff" to add the first faculty member.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b-2 border-slate-200 text-slate-600 font-black uppercase tracking-wide">
+                      <tr>
+                        <th className="p-3.5 rounded-l-xl">Faculty Name</th>
+                        <th className="p-3.5">Email / Login ID</th>
+                        <th className="p-3.5">Department</th>
+                        <th className="p-3.5">Year / Section</th>
+                        <th className="p-3.5 rounded-r-xl text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {staffList.map((staff) => (
+                        <tr key={staff.id} className="hover:bg-slate-50 transition">
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 font-black text-sm flex items-center justify-center shrink-0">
+                                {staff.name?.charAt(0) || 'S'}
+                              </div>
+                              <span className="font-black text-slate-900">{staff.name}</span>
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono text-red-700 font-bold">{staff.email}</td>
+                          <td className="p-3.5 text-slate-600">{staff.department}</td>
+                          <td className="p-3.5 text-slate-600">
+                            {staff.year || '—'} • <span className="font-bold text-slate-800">{staff.class_section || '—'}</span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleEditStaffOpen(staff)}
+                                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 flex items-center gap-1.5 transition"
+                                title="Edit staff details & reset password"
+                              >
+                                <Edit className="w-3 h-3" /> Edit / Reset Password
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStaff(staff)}
+                                className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 font-bold border border-red-200 flex items-center gap-1.5 transition"
+                                title="Remove staff member"
+                              >
+                                <Trash2 className="w-3 h-3" /> Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: REPORTS + SEND SMS */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
 
@@ -435,7 +733,7 @@ export default function HeadDashboard() {
           </div>
         )}
 
-        {/* TAB 3: SMS AUDIT LOGS */}
+        {/* TAB 4: SMS AUDIT LOGS */}
         {activeTab === 'sms_logs' && (
           <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-3xl space-y-6">
             <div className="flex items-center gap-3">
@@ -487,6 +785,82 @@ export default function HeadDashboard() {
         )}
 
       </main>
+
+      {/* MODAL: ENROLL NEW STAFF */}
+      {showAddStaffModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setShowAddStaffModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Enroll New Faculty Staff</h3>
+                <p className="text-xs text-slate-500">Head assigns email & password — staff cannot create their own account.</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+              <KeyRound className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+              <span><strong>Important:</strong> The password you set here is the staff member's login credential. Share it with them directly. Only you (Head) can reset it later.</span>
+            </div>
+
+            <form onSubmit={handleAddStaffSubmit} className="space-y-4">
+              <StaffFormFields />
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setShowAddStaffModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md transition">
+                  Enroll Staff Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT STAFF */}
+      {showEditStaffModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => { setShowEditStaffModal(false); setEditingStaff(null); }} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md">
+                <Edit className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Edit Staff — {editingStaff?.name}</h3>
+                <p className="text-xs text-slate-500">Update staff details or reset their login password.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleEditStaffSubmit} className="space-y-4">
+              <StaffFormFields />
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => { setShowEditStaffModal(false); setEditingStaff(null); }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
