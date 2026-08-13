@@ -129,8 +129,28 @@ export const getStudentAttendance = async (req, res) => {
   }
 
   if (!student) {
-    student = mockStore.students.find(s => s.user_id === userId) || mockStore.students[0];
-    records = mockStore.attendance.filter(a => a.student_id === student.id);
+    student = mockStore.students.find(
+      s => s.user_id === userId ||
+        (req.user.email && s.email?.toLowerCase() === req.user.email.toLowerCase()) ||
+        (req.user.register_number && s.register_number === req.user.register_number)
+    );
+    if (!student) {
+      student = {
+        id: 0,
+        user_id: userId,
+        register_number: req.user.register_number || '',
+        name: req.user.name || '',
+        department: req.user.department || '',
+        year: req.user.year || '',
+        class_section: req.user.class_section || '',
+        parent_name: '',
+        parent_mobile: '',
+        email: req.user.email || ''
+      };
+    }
+    records = mockStore.attendance.filter(
+      a => a.student_id === student.id || (student.register_number && a.register_number === student.register_number)
+    );
   }
 
   const totalClasses = records.length;

@@ -12,94 +12,20 @@ export const mockStore = {
   users: [
     {
       id: 1,
-      name: "Dr. R. Sharma (Head of Dept)",
+      name: "Head of Department",
       email: "head@college.edu",
-      password: "head",
+      password: "head123",
       role: "head",
-      department: "Computer Science & Engineering",
+      department: "",
       year: "All",
       class_section: "All"
-    },
-    {
-      id: 2,
-      name: "Prof. A. Kumar",
-      email: "staff@college.edu",
-      password: "staff",
-      role: "staff",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A"
-    },
-    {
-      id: 3,
-      name: "Alex Johnson",
-      email: "student@college.edu",
-      password: "student",
-      role: "student",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A"
-    },
-    {
-      id: 4,
-      name: "Priya Patel",
-      email: "priya@college.edu",
-      password: "student",
-      role: "student",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A"
-    },
-    {
-      id: 5,
-      name: "Rahul Verma",
-      email: "rahul@college.edu",
-      password: "student",
-      role: "student",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A"
     }
+    // Staff are added by Head via HeadDashboard → /api/staff POST (isHead)
+    // Students are added by Staff via StaffDashboard → /api/students POST (isStaff)
   ],
 
-  students: [
-    {
-      id: 1,
-      user_id: 3,
-      register_number: "2023CSE001",
-      name: "Alex Johnson",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A",
-      parent_name: "Robert Johnson",
-      parent_mobile: "+19876543210",
-      email: "student@college.edu"
-    },
-    {
-      id: 2,
-      user_id: 4,
-      register_number: "2023CSE002",
-      name: "Priya Patel",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A",
-      parent_name: "Suresh Patel",
-      parent_mobile: "+19876543211",
-      email: "priya@college.edu"
-    },
-    {
-      id: 3,
-      user_id: 5,
-      register_number: "2023CSE003",
-      name: "Rahul Verma",
-      department: "Computer Science & Engineering",
-      year: "3rd Year",
-      class_section: "CSE-A",
-      parent_name: "Vikram Verma",
-      parent_mobile: "+19876543212",
-      email: "rahul@college.edu"
-    }
-  ],
+  // No default students — all students are added by Staff via StaffDashboard
+  students: [],
 
   timetables: [
     {

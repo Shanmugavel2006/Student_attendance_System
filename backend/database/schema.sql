@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS students (
     department VARCHAR(100) NOT NULL,
     year VARCHAR(50) NOT NULL,
     class_section VARCHAR(50) NOT NULL,
+    student_mobile VARCHAR(20),
     parent_name VARCHAR(100) NOT NULL,
     parent_mobile VARCHAR(20) NOT NULL,
     email VARCHAR(100) NOT NULL,

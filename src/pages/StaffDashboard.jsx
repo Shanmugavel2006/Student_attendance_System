@@ -16,12 +16,19 @@ export default function StaffDashboard() {
   const [classConfirmed, setClassConfirmed] = useState(false);
 
   // Class & Session Selectors
-  const [department, setDepartment] = useState('Computer Science & Engineering');
-  const [year, setYear] = useState('3rd Year');
-  const [classSection, setClassSection] = useState('CSE-A');
-  const [subject, setSubject] = useState('Database Management Systems');
+  const [department, setDepartment] = useState(user?.department || 'Computer Science & Engineering');
+  const [year, setYear] = useState(user?.year || '3rd Year');
+  const [classSection, setClassSection] = useState(user?.class_section || 'CSE-A');
+  const [subject, setSubject] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [session, setSession] = useState('Morning');
+
+  // Sync state if user context loads
+  useEffect(() => {
+    if (user?.department) setDepartment(user.department);
+    if (user?.year) setYear(user.year);
+    if (user?.class_section) setClassSection(user.class_section);
+  }, [user]);
 
   // ========= PHASE 2: DASHBOARD TABS =========
   const [activeTab, setActiveTab] = useState('attendance'); // attendance, students, timetable, exam
@@ -41,8 +48,8 @@ export default function StaffDashboard() {
 
   const [studentForm, setStudentForm] = useState({
     registerNumber: '', name: '',
-    department: 'Computer Science & Engineering',
-    year: '3rd Year', classSection: 'CSE-A',
+    department: '',
+    year: '', classSection: '',
     parentName: '', parentMobile: '', email: ''
   });
 
@@ -54,17 +61,17 @@ export default function StaffDashboard() {
   const [showAddTtModal, setShowAddTtModal] = useState(false);
   const [newTt, setNewTt] = useState({
     dayOfWeek: 'Monday', sessionTime: '09:00 - 10:00 AM',
-    subject: 'Database Management Systems', facultyName: user?.name || 'Prof. A. Kumar', room: 'Lab 1'
+    subject: '', facultyName: user?.name || '', room: ''
   });
 
   // Add Exam Modal State
   const [showAddExamModal, setShowAddExamModal] = useState(false);
   const [newExam, setNewExam] = useState({
     examDate: new Date().toISOString().split('T')[0],
-    subject: 'Database Management Systems',
+    subject: '',
     examTime: '10:00 AM - 01:00 PM',
     semester: 'Semester 5',
-    examHall: 'Main Exam Hall A'
+    examHall: ''
   });
 
   useEffect(() => {
@@ -74,6 +81,17 @@ export default function StaffDashboard() {
       fetchExamTimetables();
     }
   }, [classConfirmed]);
+
+  // ========= TIME WINDOW CHECK =========
+  // Attendance can only be marked during Morning (9:00-10:00) or Afternoon (13:50-14:30)
+  const isWithinWindow = (() => {
+    if (demoBypassTime) return true; // bypass for testing
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const morningOk = mins >= 9 * 60 && mins <= 10 * 60;
+    const afternoonOk = mins >= 13 * 60 + 50 && mins <= 14 * 60 + 30;
+    return morningOk || afternoonOk;
+  })();
 
   const handleConfirmClass = () => {
     setClassConfirmed(true);
@@ -205,9 +223,11 @@ export default function StaffDashboard() {
   const openAddStudentModal = () => {
     setStudentForm({
       registerNumber: '', name: '',
-      department: department,
-      year: year, classSection: classSection,
-      parentName: '', parentMobile: '', email: ''
+      department: department || user?.department || 'Computer Science & Engineering',
+      year: year || user?.year || '3rd Year',
+      classSection: classSection || user?.class_section || 'CSE-A',
+      studentMobile: '',
+      parentName: '', parentMobile: '', email: '', password: ''
     });
     setShowAddStudentModal(true);
   };
@@ -215,14 +235,16 @@ export default function StaffDashboard() {
   const openEditStudentModal = (std) => {
     setEditingStudent(std);
     setStudentForm({
-      registerNumber: std.register_number,
-      name: std.name,
-      department: std.department || department,
-      year: std.year || year,
-      classSection: std.class_section || classSection,
+      registerNumber: std.register_number || '',
+      name: std.name || '',
+      department: std.department || department || user?.department || 'Computer Science & Engineering',
+      year: std.year || year || user?.year || '3rd Year',
+      classSection: std.class_section || classSection || user?.class_section || 'CSE-A',
+      studentMobile: std.student_mobile || '',
       parentName: std.parent_name || '',
       parentMobile: std.parent_mobile || '',
-      email: std.email || ''
+      email: std.email || '',
+      password: ''
     });
     setShowEditStudentModal(true);
   };
@@ -567,16 +589,25 @@ export default function StaffDashboard() {
                   <h3 className="text-sm font-black text-slate-800">Mark Student Attendance — {subject} ({session})</h3>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={markAllPresent}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition">
-                    ✓ Mark All Present
-                  </button>
-                  <button type="button" onClick={markAllAbsent}
-                    className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition">
-                    ✗ Mark All Absent
-                  </button>
-                </div>
+                {/* Outside window banner inside card */}
+                {!isWithinWindow && (
+                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1">
+                    🔒 Locked — Outside Attendance Window
+                  </span>
+                )}
+
+                {isWithinWindow && (
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={markAllPresent}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition">
+                      ✓ Mark All Present
+                    </button>
+                    <button type="button" onClick={markAllAbsent}
+                      className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition">
+                      ✗ Mark All Absent
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Stats Bar */}
@@ -621,28 +652,38 @@ export default function StaffDashboard() {
                             <td className="p-3.5 font-mono font-black text-emerald-700">{student.register_number}</td>
                             <td className="p-3.5 font-bold text-slate-900">{student.name}</td>
                             <td className="p-3.5 text-slate-500">{student.parent_name} <span className="font-mono">({student.parent_mobile})</span></td>
-                            <td className="p-3.5 text-center">
-                              <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1">
-                                <button type="button" onClick={() => handleStatusToggle(student.id, 'Not Taken')}
-                                  className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1.5 transition text-xs ${
-                                    status === 'Not Taken' ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                                  }`}>
-                                  — Not Taken
-                                </button>
-                                <button type="button" onClick={() => handleStatusToggle(student.id, 'Present')}
-                                  className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1.5 transition text-xs ${
-                                    status === 'Present' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-emerald-600'
-                                  }`}>
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Present
-                                </button>
-                                <button type="button" onClick={() => handleStatusToggle(student.id, 'Absent')}
-                                  className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1.5 transition text-xs ${
-                                    status === 'Absent' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400 hover:text-red-600'
-                                  }`}>
-                                  <XCircle className="w-3.5 h-3.5" /> Absent
-                                </button>
-                              </div>
-                            </td>
+                          <td className="p-3.5 text-center">
+                            <div className={`inline-flex p-1 rounded-xl border gap-1 ${
+                              isWithinWindow
+                                ? 'bg-slate-100 border-slate-200'
+                                : 'bg-slate-50 border-slate-100 opacity-50 cursor-not-allowed'
+                            }`}>
+                              <button type="button"
+                                disabled={!isWithinWindow}
+                                onClick={() => isWithinWindow && handleStatusToggle(student.id, 'Not Taken')}
+                                className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1.5 transition text-xs ${
+                                  status === 'Not Taken' ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                                } disabled:cursor-not-allowed`}>
+                                — Not Taken
+                              </button>
+                              <button type="button"
+                                disabled={!isWithinWindow}
+                                onClick={() => isWithinWindow && handleStatusToggle(student.id, 'Present')}
+                                className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1.5 transition text-xs ${
+                                  status === 'Present' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-emerald-600'
+                                } disabled:cursor-not-allowed`}>
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Present
+                              </button>
+                              <button type="button"
+                                disabled={!isWithinWindow}
+                                onClick={() => isWithinWindow && handleStatusToggle(student.id, 'Absent')}
+                                className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1.5 transition text-xs ${
+                                  status === 'Absent' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400 hover:text-red-600'
+                                } disabled:cursor-not-allowed`}>
+                                <XCircle className="w-3.5 h-3.5" /> Absent
+                              </button>
+                            </div>
+                          </td>
                             <td className="p-3.5 text-right">
                               <button
                                 onClick={() => openEditStudentModal(student)}
@@ -670,12 +711,17 @@ export default function StaffDashboard() {
 
               <div className="ml-8 flex items-center gap-4">
                 <button type="button" onClick={handleSubmitAttendance}
-                  disabled={submitting || students.length === 0}
-                  className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition disabled:opacity-50">
+                  disabled={submitting || students.length === 0 || !isWithinWindow}
+                  className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition disabled:opacity-50 disabled:cursor-not-allowed">
                   <FileText className="w-4 h-4" />
                   {submitting ? 'Saving Attendance...' : 'Submit Attendance to Head'}
                 </button>
-                {notTakenCount > 0 && (
+                {!isWithinWindow && (
+                  <span className="text-xs text-amber-700 font-bold bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl">
+                    🔒 Attendance submission locked outside morning/afternoon window
+                  </span>
+                )}
+                {isWithinWindow && notTakenCount > 0 && (
                   <span className="text-xs text-amber-700 font-bold bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl">
                     ⚠ {notTakenCount} student(s) not marked yet
                   </span>
@@ -724,8 +770,11 @@ export default function StaffDashboard() {
                         <td className="p-3.5 text-slate-400 font-bold">{idx + 1}</td>
                         <td className="p-3.5 font-mono font-black text-emerald-700">{student.register_number}</td>
                         <td className="p-3.5 font-bold text-slate-900">{student.name}</td>
-                        <td className="p-3.5 text-slate-500">{student.email}</td>
-                        <td className="p-3.5 text-slate-600 font-medium">{student.department} ({student.class_section})</td>
+                        <td className="p-3.5 text-slate-500 font-medium">
+                          <div>{student.email}</div>
+                          {student.student_mobile && <div className="text-[11px] font-mono text-slate-400">📱 {student.student_mobile}</div>}
+                        </td>
+                        <td className="p-3.5 text-slate-600 font-medium">{student.department} ({student.year || '3rd Year'}, {student.class_section})</td>
                         <td className="p-3.5 font-mono font-bold text-slate-800">{student.parent_name} ({student.parent_mobile})</td>
                         <td className="p-3.5 text-right space-x-2">
                           <button
@@ -774,33 +823,57 @@ export default function StaffDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {timetables.length === 0 ? (
-                <div className="col-span-full text-center py-8 text-slate-400 text-xs">No timetable entries for this class. Click "Add Timetable Slot" to create one.</div>
-              ) : (
-                timetables.map((t) => (
-                  <div key={t.id} className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2 relative group hover:border-emerald-300 transition">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-emerald-700 uppercase tracking-wider">{t.day_of_week}</span>
-                      <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-mono">{t.session_time}</span>
-                    </div>
-                    <h4 className="text-sm font-black text-slate-900">{t.subject}</h4>
-                    <div className="text-xs text-slate-500 flex items-center justify-between pt-2 border-t border-slate-200">
-                      <span>Faculty: {t.faculty_name}</span>
-                      <span className="text-emerald-600 font-bold">{t.room}</span>
-                    </div>
-
-                    <button
-                      onClick={() => handleDeleteTimetable(t.id)}
-                      className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-600 rounded-md transition opacity-0 group-hover:opacity-100"
-                      title="Delete Slot"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+            {/* Timetable: grouped by day, one full row per day */}
+            {timetables.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs">No timetable entries for this class. Click "Add Timetable Slot" to create one.</div>
+            ) : (() => {
+              const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+              const byDay = {};
+              timetables.forEach(t => {
+                const d = t.day_of_week;
+                if (!byDay[d]) byDay[d] = [];
+                byDay[d].push(t);
+              });
+              return DAY_ORDER.filter(d => byDay[d]).map(day => (
+                <div key={day} className="space-y-2">
+                  {/* Day Label Row */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest bg-slate-100 border border-slate-200 px-3 py-1 rounded-full">
+                      {day}
+                    </span>
+                    <div className="flex-1 h-px bg-slate-200" />
+                    <span className="text-[11px] text-slate-400 font-medium">{byDay[day].length} period{byDay[day].length !== 1 ? 's' : ''}</span>
                   </div>
-                ))
-              )}
-            </div>
+                  {/* Periods row for this day */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {byDay[day]
+                      .slice()
+                      .sort((a, b) => a.session_time.localeCompare(b.session_time))
+                      .map(t => (
+                        <div key={t.id} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 relative group hover:border-emerald-300 hover:shadow-md transition">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold">
+                              {t.session_time}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteTimetable(t.id)}
+                              className="p-1 text-slate-300 hover:text-red-600 rounded-md transition opacity-0 group-hover:opacity-100"
+                              title="Delete Slot"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <h4 className="text-sm font-black text-slate-900 leading-tight">{t.subject}</h4>
+                          <div className="text-[11px] text-slate-500 flex items-center justify-between pt-2 border-t border-slate-100">
+                            <span>👤 {t.faculty_name}</span>
+                            <span className="text-emerald-600 font-bold">🚪 {t.room}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
 
@@ -867,7 +940,7 @@ export default function StaffDashboard() {
       {/* MODAL 1: ADD NEW STUDENT */}
       {showAddStudentModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative">
+          <div className="bg-white max-w-xl w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setShowAddStudentModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
               <X className="w-5 h-5" />
             </button>
@@ -877,16 +950,17 @@ export default function StaffDashboard() {
                 <UserPlus className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">Add New Student to {classSection}</h3>
-                <p className="text-xs text-slate-500">Create new student record with login credentials.</p>
+                <h3 className="text-lg font-black text-slate-900">Add New Student to {studentForm.classSection || classSection}</h3>
+                <p className="text-xs text-slate-500">Create new student record directly linked to department & class session.</p>
               </div>
             </div>
 
-            <form onSubmit={handleAddStudentSubmit} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleAddStudentSubmit} className="space-y-3.5 text-xs">
+              {/* Register No & Full Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Register Number</label>
-                  <input type="text" required placeholder="2023CSE004"
+                  <input type="text" required placeholder="e.g. 2023CSE004"
                     value={studentForm.registerNumber}
                     onChange={(e) => setStudentForm({ ...studentForm, registerNumber: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
@@ -900,24 +974,56 @@ export default function StaffDashboard() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Email</label>
-                <input type="email" required placeholder="student@college.edu"
-                  value={studentForm.email}
-                  onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+              {/* Department, Year & Class Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Department</label>
+                  <input type="text" required placeholder="e.g. Computer Science & Engineering"
+                    value={studentForm.department}
+                    onChange={(e) => setStudentForm({ ...studentForm, department: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Academic Year</label>
+                  <select required
+                    value={studentForm.year}
+                    onChange={(e) => setStudentForm({ ...studentForm, year: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium cursor-pointer">
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Class Section</label>
+                  <input type="text" required placeholder="e.g. CSE-A"
+                    value={studentForm.classSection}
+                    onChange={(e) => setStudentForm({ ...studentForm, classSection: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">🔑 Login Password (Set by Staff — student cannot change this)</label>
-                <input type="password" required placeholder="Set a login password for the student"
-                  value={studentForm.password || ''}
-                  onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
-                <p className="text-[11px] text-slate-400 mt-1">Only staff can set or reset student passwords. Share this with the student directly.</p>
+              {/* Student Email & Student Mobile Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Email</label>
+                  <input type="email" required placeholder="student@college.edu"
+                    value={studentForm.email}
+                    onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Phone / Mobile No</label>
+                  <input type="text" placeholder="+19876543210"
+                    value={studentForm.studentMobile || ''}
+                    onChange={(e) => setStudentForm({ ...studentForm, studentMobile: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Parent Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Full Name</label>
                   <input type="text" required placeholder="Parent Name"
@@ -926,12 +1032,22 @@ export default function StaffDashboard() {
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Mobile (SMS)</label>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Mobile (SMS Alerts)</label>
                   <input type="text" required placeholder="+19876543219"
                     value={studentForm.parentMobile}
                     onChange={(e) => setStudentForm({ ...studentForm, parentMobile: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">🔑 Login Password (Set by Staff)</label>
+                <input type="password" required placeholder="Set a login password for the student"
+                  value={studentForm.password || ''}
+                  onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                <p className="text-[11px] text-slate-400 mt-1">Only staff can set or reset student passwords. Share this password with the student directly.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
@@ -952,7 +1068,7 @@ export default function StaffDashboard() {
       {/* MODAL 2: EDIT STUDENT DETAILS (FIX MISMATCHES) */}
       {showEditStudentModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white max-w-lg w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative">
+          <div className="bg-white max-w-xl w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setShowEditStudentModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
               <X className="w-5 h-5" />
             </button>
@@ -962,13 +1078,14 @@ export default function StaffDashboard() {
                 <Edit className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">Edit Student Mismatches</h3>
-                <p className="text-xs text-slate-500">Fix student credentials, register number, department or parent contact.</p>
+                <h3 className="text-lg font-black text-slate-900">Edit Student Record & Details</h3>
+                <p className="text-xs text-slate-500">Update student credentials, contact info, department, or class session.</p>
               </div>
             </div>
 
-            <form onSubmit={handleEditStudentSubmit} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleEditStudentSubmit} className="space-y-3.5 text-xs">
+              {/* Register No & Full Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Register Number</label>
                   <input type="text" required
@@ -985,25 +1102,56 @@ export default function StaffDashboard() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Email</label>
-                <input type="email" required
-                  value={studentForm.email}
-                  onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+              {/* Department, Year & Class Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Department</label>
+                  <input type="text" required
+                    value={studentForm.department}
+                    onChange={(e) => setStudentForm({ ...studentForm, department: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Academic Year</label>
+                  <select required
+                    value={studentForm.year}
+                    onChange={(e) => setStudentForm({ ...studentForm, year: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium cursor-pointer">
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Class Section</label>
+                  <input type="text" required
+                    value={studentForm.classSection}
+                    onChange={(e) => setStudentForm({ ...studentForm, classSection: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">🔑 Reset Password (leave blank to keep current)</label>
-                <input type="password"
-                  placeholder="••••••••  (leave blank to keep current password)"
-                  value={studentForm.password || ''}
-                  onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
-                <p className="text-[11px] text-slate-400 mt-1">Only staff can set or reset student passwords. Students cannot change their own password.</p>
+              {/* Student Email & Student Mobile Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Email</label>
+                  <input type="email" required
+                    value={studentForm.email}
+                    onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Student Phone / Mobile No</label>
+                  <input type="text" placeholder="+19876543210"
+                    value={studentForm.studentMobile || ''}
+                    onChange={(e) => setStudentForm({ ...studentForm, studentMobile: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Parent Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Full Name</label>
                   <input type="text" required
@@ -1012,12 +1160,23 @@ export default function StaffDashboard() {
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Mobile (SMS)</label>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Parent Mobile (SMS Alerts)</label>
                   <input type="text" required
                     value={studentForm.parentMobile}
                     onChange={(e) => setStudentForm({ ...studentForm, parentMobile: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
                 </div>
+              </div>
+
+              {/* Reset Password */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">🔑 Reset Password (leave blank to keep current)</label>
+                <input type="password"
+                  placeholder="••••••••  (leave blank to keep current password)"
+                  value={studentForm.password || ''}
+                  onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium" />
+                <p className="text-[11px] text-slate-400 mt-1">Only staff can set or reset student passwords. Students cannot change their own password.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">

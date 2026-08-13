@@ -124,7 +124,7 @@ export const getStudentAttendance = async (req, res) => {
  * Add a new student to the system with complete details & staff-defined password
  */
 export const addStudent = async (req, res) => {
-  const { registerNumber, name, department, year, classSection, parentName, parentMobile, email, password } = req.body;
+  const { registerNumber, name, department, year, classSection, studentMobile, parentName, parentMobile, email, password } = req.body;
 
   if (!registerNumber || !name || !department || !year || !classSection || !parentName || !parentMobile || !email) {
     return res.status(400).json({ success: false, message: 'All student details including parent info are required.' });
@@ -153,9 +153,9 @@ export const addStudent = async (req, res) => {
 
       // 2. Create Student details entry
       const [studentResult] = await pool.query(
-        `INSERT INTO students (user_id, register_number, name, department, year, class_section, parent_name, parent_mobile, email)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newUserId, registerNumber, name, department, year, classSection, parentName, parentMobile, email]
+        `INSERT INTO students (user_id, register_number, name, department, year, class_section, student_mobile, parent_name, parent_mobile, email)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newUserId, registerNumber, name, department, year, classSection, studentMobile || '', parentName, parentMobile, email]
       );
 
       newStudent = {
@@ -164,6 +164,7 @@ export const addStudent = async (req, res) => {
         register_number: registerNumber,
         name, department, year,
         class_section: classSection,
+        student_mobile: studentMobile || '',
         parent_name: parentName,
         parent_mobile: parentMobile,
         email
@@ -188,7 +189,9 @@ export const addStudent = async (req, res) => {
     newStudent = {
       id: mockStudentId, user_id: mockUserId,
       register_number: registerNumber, name, department, year,
-      class_section: classSection, parent_name: parentName,
+      class_section: classSection,
+      student_mobile: studentMobile || '',
+      parent_name: parentName,
       parent_mobile: parentMobile, email
     };
 
@@ -207,7 +210,7 @@ export const addStudent = async (req, res) => {
  */
 export const updateStudent = async (req, res) => {
   const { id } = req.params;
-  const { registerNumber, name, department, year, classSection, parentName, parentMobile, email, password } = req.body;
+  const { registerNumber, name, department, year, classSection, studentMobile, parentName, parentMobile, email, password } = req.body;
 
   if (isUsingMySQL && pool) {
     try {
@@ -219,9 +222,9 @@ export const updateStudent = async (req, res) => {
         // Update student info
         await pool.query(
           `UPDATE students
-           SET register_number = ?, name = ?, department = ?, year = ?, class_section = ?, parent_name = ?, parent_mobile = ?, email = ?
+           SET register_number = ?, name = ?, department = ?, year = ?, class_section = ?, student_mobile = ?, parent_name = ?, parent_mobile = ?, email = ?
            WHERE id = ?`,
-          [registerNumber, name, department, year, classSection, parentName, parentMobile, email, id]
+          [registerNumber, name, department, year, classSection, studentMobile || '', parentName, parentMobile, email, id]
         );
 
         // Update user account
@@ -257,6 +260,7 @@ export const updateStudent = async (req, res) => {
       department: department || targetStudent.department,
       year: year || targetStudent.year,
       class_section: classSection || targetStudent.class_section,
+      student_mobile: studentMobile !== undefined ? studentMobile : targetStudent.student_mobile,
       parent_name: parentName || targetStudent.parent_name,
       parent_mobile: parentMobile || targetStudent.parent_mobile,
       email: email || targetStudent.email

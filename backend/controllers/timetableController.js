@@ -105,9 +105,9 @@ export const addClassTimetable = async (req, res) => {
       const [result] = await pool.query(
         `INSERT INTO timetables (department, year, class_section, day_of_week, session_time, subject, faculty_name, room)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [department, year, classSection, dayOfWeek, sessionTime, subject, facultyName, room || 'Room 301']
+        [department, year, classSection, dayOfWeek, sessionTime, subject, facultyName, room || '']
       );
-      newItem = { id: result.insertId, department, year, class_section: classSection, day_of_week: dayOfWeek, session_time: sessionTime, subject, faculty_name: facultyName, room: room || 'Room 301' };
+      newItem = { id: result.insertId, department, year, class_section: classSection, day_of_week: dayOfWeek, session_time: sessionTime, subject, faculty_name: facultyName, room: room || '' };
     } catch (err) {
       console.error('Error adding timetable slot in MySQL:', err);
     }
@@ -123,7 +123,7 @@ export const addClassTimetable = async (req, res) => {
       session_time: sessionTime,
       subject,
       faculty_name: facultyName,
-      room: room || 'Room 301'
+      room: room || ''
     };
     mockStore.timetables.push(newItem);
   }
@@ -169,9 +169,9 @@ export const addExamTimetable = async (req, res) => {
       const [result] = await pool.query(
         `INSERT INTO exam_timetables (department, year, class_section, exam_date, subject, exam_time, semester, exam_hall)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [department, year, classSection, examDate, subject, examTime, semester || 'Semester 5', examHall || 'Hall A']
+        [department, year, classSection, examDate, subject, examTime, semester || '', examHall || '']
       );
-      newItem = { id: result.insertId, department, year, class_section: classSection, exam_date: examDate, subject, exam_time: examTime, semester: semester || 'Semester 5', exam_hall: examHall || 'Hall A' };
+      newItem = { id: result.insertId, department, year, class_section: classSection, exam_date: examDate, subject, exam_time: examTime, semester: semester || '', exam_hall: examHall || '' };
     } catch (err) {
       console.error('Error adding exam schedule in MySQL:', err);
     }
@@ -186,8 +186,8 @@ export const addExamTimetable = async (req, res) => {
       exam_date: examDate,
       subject,
       exam_time: examTime,
-      semester: semester || 'Semester 5',
-      exam_hall: examHall || 'Hall A'
+      semester: semester || '',
+      exam_hall: examHall || ''
     };
     mockStore.exam_timetables.push(newItem);
   }

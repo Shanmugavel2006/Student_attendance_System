@@ -32,8 +32,8 @@ export default function StudentDashboard() {
     try {
       const [attRes, ttRes, etRes] = await Promise.all([
         api.get('/attendance/student-records'),
-        api.get(`/timetables/class?department=${encodeURIComponent(user?.department || 'Computer Science & Engineering')}&year=${encodeURIComponent(user?.year || '3rd Year')}&classSection=${encodeURIComponent(user?.class_section || 'CSE-A')}`),
-        api.get(`/timetables/exam?department=${encodeURIComponent(user?.department || 'Computer Science & Engineering')}&year=${encodeURIComponent(user?.year || '3rd Year')}&classSection=${encodeURIComponent(user?.class_section || 'CSE-A')}`)
+        api.get(`/timetables/class?department=${encodeURIComponent(user?.department || '')}&year=${encodeURIComponent(user?.year || '')}&classSection=${encodeURIComponent(user?.class_section || '')}`),
+        api.get(`/timetables/exam?department=${encodeURIComponent(user?.department || '')}&year=${encodeURIComponent(user?.year || '')}&classSection=${encodeURIComponent(user?.class_section || '')}`)
       ]);
 
       if (attRes.data.success) {
@@ -280,7 +280,7 @@ export default function StudentDashboard() {
         doc.text(`${item.day_of_week} (${item.session_time})`, 14, y);
         doc.text(item.subject, 70, y);
         doc.text(item.faculty_name, 130, y);
-        doc.text(item.room || 'Lab 1', 175, y);
+        doc.text(item.room || '', 175, y);
         y += 8;
       });
 
@@ -308,7 +308,7 @@ export default function StudentDashboard() {
         doc.text(item.exam_date, 14, y);
         doc.text(item.subject, 50, y);
         doc.text(item.exam_time, 115, y);
-        doc.text(item.exam_hall || 'Hall A', 170, y);
+        doc.text(item.exam_hall || '', 170, y);
         y += 8;
       });
 
@@ -441,7 +441,7 @@ export default function StudentDashboard() {
               <div className="bg-blue-600 px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-                    {user?.name || 'Student'} - {user?.class_section || '11'} Attendance Report
+                    {user?.name || ''} {user?.class_section ? `- ${user.class_section}` : ''} Attendance Report
                   </h3>
                   <p className="text-blue-100 text-xs mt-0.5">
                     Subject-wise attendance matrix by dates ({selectedMonth === 'ALL' ? 'All Months' : selectedMonth})
@@ -874,7 +874,7 @@ export default function StudentDashboard() {
                       <td className="p-3.5 font-bold text-slate-900">{exam.subject}</td>
                       <td className="p-3.5 font-mono">{exam.exam_time}</td>
                       <td className="p-3.5">{exam.semester}</td>
-                      <td className="p-3.5 text-pink-700 font-bold">{exam.exam_hall || 'Main Hall'}</td>
+                      <td className="p-3.5 text-pink-700 font-bold">{exam.exam_hall || ''}</td>
                     </tr>
                   ))}
                 </tbody>

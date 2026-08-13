@@ -105,8 +105,8 @@ export default function HeadDashboard() {
   const resetStaffForm = () => {
     setStaffForm({
       name: '', email: '', password: '',
-      department: 'Computer Science & Engineering',
-      year: '3rd Year', classSection: 'CSE-A'
+      department: '',
+      year: '', classSection: ''
     });
   };
 
@@ -141,9 +141,9 @@ export default function HeadDashboard() {
       name: staff.name,
       email: staff.email,
       password: '',
-      department: staff.department || 'Computer Science & Engineering',
-      year: staff.year || '3rd Year',
-      classSection: staff.class_section || 'CSE-A'
+      department: staff.department || '',
+      year: staff.year || '',
+      classSection: staff.class_section || ''
     });
     setShowEditStaffModal(true);
   };
@@ -265,72 +265,6 @@ export default function HeadDashboard() {
     'Mechanical Engineering'
   ];
 
-  const StaffFormFields = () => (
-    <div className="space-y-3 text-xs">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Full Name</label>
-          <input type="text" required placeholder="Prof. Suresh Kumar"
-            value={staffForm.name}
-            onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
-        </div>
-        <div>
-          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Email Address</label>
-          <input type="email" required placeholder="staff@college.edu"
-            value={staffForm.email}
-            onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">
-          <KeyRound className="w-3 h-3" />
-          {showEditStaffModal ? 'New Password (leave blank to keep current)' : 'Login Password (set by Head)'}
-        </label>
-        <input type="password"
-          required={!showEditStaffModal}
-          placeholder={showEditStaffModal ? '••••••••  (leave blank to keep current)' : 'Set a secure password for staff login'}
-          value={staffForm.password}
-          onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-          className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
-        <p className="text-[11px] text-slate-400 mt-1">
-          🔒 Only the Head can set or reset staff passwords. Staff cannot change their own password.
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Department</label>
-        <select value={staffForm.department}
-          onChange={(e) => setStaffForm({ ...staffForm, department: e.target.value })}
-          className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500">
-          {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Assigned Year</label>
-          <select value={staffForm.year}
-            onChange={(e) => setStaffForm({ ...staffForm, year: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500">
-            <option value="1st Year">1st Year</option>
-            <option value="2nd Year">2nd Year</option>
-            <option value="3rd Year">3rd Year</option>
-            <option value="4th Year">4th Year</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Class Section</label>
-          <input type="text" placeholder="CSE-A"
-            value={staffForm.classSection}
-            onChange={(e) => setStaffForm({ ...staffForm, classSection: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -514,28 +448,50 @@ export default function HeadDashboard() {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 border-b-2 border-slate-200 text-slate-600 font-black uppercase tracking-wide">
                       <tr>
-                        <th className="p-3.5 rounded-l-xl">Faculty Name</th>
+                        <th className="p-3.5 rounded-l-xl">#</th>
+                        <th className="p-3.5">Faculty Name</th>
                         <th className="p-3.5">Email / Login ID</th>
                         <th className="p-3.5">Department</th>
-                        <th className="p-3.5">Year / Section</th>
+                        <th className="p-3.5">Year</th>
+                        <th className="p-3.5">Class Section</th>
+                        <th className="p-3.5">Enrolled On</th>
                         <th className="p-3.5 rounded-r-xl text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {staffList.map((staff) => (
+                      {staffList.map((staff, idx) => (
                         <tr key={staff.id} className="hover:bg-slate-50 transition">
+                          <td className="p-3.5 text-slate-400 font-bold">{idx + 1}</td>
                           <td className="p-3.5">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 font-black text-sm flex items-center justify-center shrink-0">
-                                {staff.name?.charAt(0) || 'S'}
+                                {staff.name?.charAt(0)?.toUpperCase() || 'S'}
                               </div>
-                              <span className="font-black text-slate-900">{staff.name}</span>
+                              <div>
+                                <div className="font-black text-slate-900">{staff.name}</div>
+                                <div className="text-[11px] text-slate-400 font-mono">ID: {staff.id}</div>
+                              </div>
                             </div>
                           </td>
-                          <td className="p-3.5 font-mono text-red-700 font-bold">{staff.email}</td>
-                          <td className="p-3.5 text-slate-600">{staff.department}</td>
-                          <td className="p-3.5 text-slate-600">
-                            {staff.year || '—'} • <span className="font-bold text-slate-800">{staff.class_section || '—'}</span>
+                          <td className="p-3.5">
+                            <div className="font-mono font-bold text-red-700">{staff.email}</div>
+                            <div className="text-[11px] text-slate-400">Role: Staff</div>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-lg font-bold text-[11px]">
+                              {staff.department || '—'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 font-medium text-slate-700">{staff.year || '—'}</td>
+                          <td className="p-3.5">
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-lg font-black text-[11px]">
+                              {staff.class_section || '—'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-slate-500">
+                            {staff.created_at
+                              ? new Date(staff.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : '—'}
                           </td>
                           <td className="p-3.5">
                             <div className="flex items-center justify-center gap-2">
@@ -544,7 +500,7 @@ export default function HeadDashboard() {
                                 className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 flex items-center gap-1.5 transition"
                                 title="Edit staff details & reset password"
                               >
-                                <Edit className="w-3 h-3" /> Edit / Reset Password
+                                <Edit className="w-3 h-3" /> Edit
                               </button>
                               <button
                                 onClick={() => handleDeleteStaff(staff)}
@@ -809,8 +765,66 @@ export default function HeadDashboard() {
               <span><strong>Important:</strong> The password you set here is the staff member's login credential. Share it with them directly. Only you (Head) can reset it later.</span>
             </div>
 
-            <form onSubmit={handleAddStaffSubmit} className="space-y-4">
-              <StaffFormFields />
+            <form onSubmit={handleAddStaffSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Full Name</label>
+                  <input type="text" required placeholder="Prof. Suresh Kumar"
+                    value={staffForm.name}
+                    onChange={(e) => setStaffForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Email Address</label>
+                  <input type="email" required placeholder="staff@college.edu"
+                    value={staffForm.email}
+                    onChange={(e) => setStaffForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">
+                  <KeyRound className="w-3 h-3" /> Login Password (Set by Head)
+                </label>
+                <input type="password" required placeholder="Set a secure password for staff login"
+                  value={staffForm.password}
+                  onChange={(e) => setStaffForm(f => ({ ...f, password: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+                <p className="text-[11px] text-slate-400 mt-1">🔒 Only the Head can set or reset staff passwords.</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Department</label>
+                <select required value={staffForm.department}
+                  onChange={(e) => setStaffForm(f => ({ ...f, department: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500">
+                  <option value="">— Select Department —</option>
+                  {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Assigned Year</label>
+                  <select value={staffForm.year}
+                    onChange={(e) => setStaffForm(f => ({ ...f, year: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500">
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Class Section</label>
+                  <input type="text" placeholder="e.g. CSE-A"
+                    value={staffForm.classSection}
+                    onChange={(e) => setStaffForm(f => ({ ...f, classSection: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-red-500" />
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => setShowAddStaffModal(false)}
                   className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">
@@ -844,8 +858,67 @@ export default function HeadDashboard() {
               </div>
             </div>
 
-            <form onSubmit={handleEditStaffSubmit} className="space-y-4">
-              <StaffFormFields />
+            <form onSubmit={handleEditStaffSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Full Name</label>
+                  <input type="text" required
+                    value={staffForm.name}
+                    onChange={(e) => setStaffForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Email Address</label>
+                  <input type="email" required
+                    value={staffForm.email}
+                    onChange={(e) => setStaffForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide flex items-center gap-1">
+                  <KeyRound className="w-3 h-3" /> New Password (leave blank to keep current)
+                </label>
+                <input type="password"
+                  placeholder="•••••••• (leave blank to keep current)"
+                  value={staffForm.password}
+                  onChange={(e) => setStaffForm(f => ({ ...f, password: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-blue-500" />
+                <p className="text-[11px] text-slate-400 mt-1">🔒 Only the Head can set or reset staff passwords.</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Department</label>
+                <select required value={staffForm.department}
+                  onChange={(e) => setStaffForm(f => ({ ...f, department: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-blue-500">
+                  <option value="">— Select Department —</option>
+                  {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Assigned Year</label>
+                  <select value={staffForm.year}
+                    onChange={(e) => setStaffForm(f => ({ ...f, year: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-blue-500">
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wide">Class Section</label>
+                  <input type="text" placeholder="e.g. CSE-A"
+                    value={staffForm.classSection}
+                    onChange={(e) => setStaffForm(f => ({ ...f, classSection: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => { setShowEditStaffModal(false); setEditingStaff(null); }}
                   className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition">

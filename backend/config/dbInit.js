@@ -34,6 +34,7 @@ export const initializeDatabase = async () => {
         department VARCHAR(100) NOT NULL,
         year VARCHAR(50) NOT NULL,
         class_section VARCHAR(50) NOT NULL,
+        student_mobile VARCHAR(20),
         parent_name VARCHAR(100) NOT NULL,
         parent_mobile VARCHAR(20) NOT NULL,
         email VARCHAR(100) NOT NULL,
@@ -41,6 +42,16 @@ export const initializeDatabase = async () => {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    // Safe migration: add student_mobile column if it doesn't already exist
+    try {
+      await connection.query(`ALTER TABLE students ADD COLUMN student_mobile VARCHAR(20) DEFAULT '' AFTER class_section`);
+      console.log('✅ Added student_mobile column to students table.');
+    } catch (alterErr) {
+      if (alterErr.errno !== 1060) { // 1060 = Duplicate column name (already exists)
+        console.warn('⚠️ Could not add student_mobile column:', alterErr.message);
+      }
+    }
 
     // 3. Create Timetables Table
     await connection.query(`
@@ -107,60 +118,33 @@ export const initializeDatabase = async () => {
       )
     `);
 
-    // Seed default Head, Staff, and Students if Users table is empty
+    // Seed ONLY the Head admin user if Users table is empty.
+    // Staff must be added by Head via Head Dashboard.
+    // Students must be added by Staff via Staff Dashboard.
     const [[{ userCount }]] = await connection.query(`SELECT COUNT(*) as userCount FROM users`);
 
     if (userCount === 0) {
-      console.log('🌱 Seeding initial records into MySQL database...');
+      console.log('🌱 Seeding initial Head admin user into MySQL database...');
 
-      // Add Head User
+      // Only seed the Head (Department Head) — no default staff or students
       await connection.query(`
-        INSERT INTO users (id, name, email, password, role, department, year, class_section) VALUES
-        (1, 'Dr. R. Sharma (Head of Dept)', 'head@college.edu', 'head', 'head', 'Computer Science & Engineering', 'All', 'All')
+        INSERT INTO users (name, email, password, role, department, year, class_section) VALUES
+        ('Head of Department', 'head@college.edu', 'head123', 'head', '', 'All', 'All')
       `);
 
-      // Add Staff User
-      await connection.query(`
-        INSERT INTO users (id, name, email, password, role, department, year, class_section) VALUES
-        (2, 'Prof. A. Kumar', 'staff@college.edu', 'staff', 'staff', 'Computer Science & Engineering', '3rd Year', 'CSE-A')
-      `);
-
-      // Add Students Users
-      await connection.query(`
-        INSERT INTO users (id, name, email, password, role, department, year, class_section) VALUES
-        (3, 'Alex Johnson', 'student@college.edu', 'student', 'student', 'Computer Science & Engineering', '3rd Year', 'CSE-A'),
-        (4, 'Priya Patel', 'priya@college.edu', 'student', 'student', 'Computer Science & Engineering', '3rd Year', 'CSE-A'),
-        (5, 'Rahul Verma', 'rahul@college.edu', 'student', 'student', 'Computer Science & Engineering', '3rd Year', 'CSE-A')
-      `);
-
-      // Add Student details
-      await connection.query(`
-        INSERT INTO students (id, user_id, register_number, name, department, year, class_section, parent_name, parent_mobile, email) VALUES
-        (1, 3, '2023CSE001', 'Alex Johnson', 'Computer Science & Engineering', '3rd Year', 'CSE-A', 'Robert Johnson', '+19876543210', 'student@college.edu'),
-        (2, 4, '2023CSE002', 'Priya Patel', 'Computer Science & Engineering', '3rd Year', 'CSE-A', 'Suresh Patel', '+19876543211', 'priya@college.edu'),
-        (3, 5, '2023CSE003', 'Rahul Verma', 'Computer Science & Engineering', '3rd Year', 'CSE-A', 'Vikram Verma', '+19876543212', 'rahul@college.edu')
-      `);
-
-      // Add Class Timetables
-      await connection.query(`
-        INSERT INTO timetables (department, year, class_section, day_of_week, session_time, subject, faculty_name, room) VALUES
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', 'Monday', '09:00 - 10:00 AM', 'Database Management Systems', 'Prof. A. Kumar', 'Lab 3'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', 'Monday', '10:00 - 11:00 AM', 'Operating Systems', 'Dr. S. Nair', 'Room 302'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', 'Monday', '01:50 - 02:30 PM', 'Web Technology Lab', 'Prof. A. Kumar', 'Lab 1'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', 'Tuesday', '09:00 - 10:00 AM', 'Computer Networks', 'Prof. M. Gupta', 'Room 302'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', 'Wednesday', '09:00 - 10:00 AM', 'Software Engineering', 'Dr. R. Sharma', 'Room 302')
-      `);
-
-      // Add Exam Timetables
-      await connection.query(`
-        INSERT INTO exam_timetables (department, year, class_section, exam_date, subject, exam_time, semester, exam_hall) VALUES
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', '2026-09-15', 'Database Management Systems', '10:00 AM - 01:00 PM', 'Semester 5', 'Main Exam Hall A'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', '2026-09-17', 'Operating Systems', '10:00 AM - 01:00 PM', 'Semester 5', 'Main Exam Hall B'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', '2026-09-19', 'Computer Networks', '10:00 AM - 01:00 PM', 'Semester 5', 'Main Exam Hall A'),
-        ('Computer Science & Engineering', '3rd Year', 'CSE-A', '2026-09-22', 'Web Technology', '02:00 PM - 05:00 PM', 'Semester 5', 'Lab 1')
-      `);
-
-      console.log('✅ MySQL Database auto-seeded with default schema & records successfully!');
+      console.log('✅ MySQL Database initialized with Head admin only. Staff & Students are managed via the dashboard.');
+    } else {
+      // Clean up old default demo accounts if they still exist from previous seeding
+      const demoEmails = ['staff@college.edu', 'student@college.edu', 'priya@college.edu', 'rahul@college.edu'];
+      for (const demoEmail of demoEmails) {
+        try {
+          // Remove student record first (FK constraint)
+          await connection.query(`DELETE FROM students WHERE email = ?`, [demoEmail]);
+          await connection.query(`DELETE FROM users WHERE email = ? AND email != 'head@college.edu'`, [demoEmail]);
+        } catch (cleanErr) {
+          // Ignore errors during cleanup (e.g. record already deleted)
+        }
+      }
     }
 
     connection.release();
