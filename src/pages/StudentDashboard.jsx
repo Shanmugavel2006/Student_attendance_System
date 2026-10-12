@@ -3,21 +3,41 @@ import Header from '../components/common/Header';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
-  PieChart as PieChartIcon, Calendar, Clock, BookOpen, FileText, Download,
-  CheckCircle2, XCircle, Award, AlertTriangle, ShieldCheck, Filter, ChevronLeft, ChevronRight,
-  TrendingUp, Check, X, Minus
+  PieChart as PieChartIcon, Calendar, Clock, FileText, Download,
+  CheckCircle2, XCircle, AlertTriangle, Filter, Check, X
 } from 'lucide-react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import jsPDF from 'jspdf';
+
+// 7 Standard Timetable Periods
+const TIMETABLE_PERIODS = [
+  { id: 1, name: 'Period 1', time: '09:00 - 10:00 AM' },
+  { id: 2, name: 'Period 2', time: '10:00 - 11:00 AM' },
+  { id: 3, name: 'Period 3', time: '11:00 - 12:00 PM' },
+  { id: 4, name: 'Period 4', time: '12:00 - 01:00 PM' },
+  { id: 5, name: 'Period 5', time: '01:50 - 02:30 PM' },
+  { id: 6, name: 'Period 6', time: '02:30 - 03:20 PM' },
+  { id: 7, name: 'Period 7', time: '03:20 - 04:10 PM' }
+];
+
+const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('reportMatrix'); // reportMatrix, subjectWise, monthlyCalendar, timetable, exam
+  const [activeTab, setActiveTab] = useState('overallStats'); // overallStats, monthlyCalendar, timetable, exam
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState('2026-08'); // YYYY-MM
+
+  // Default selected month automatically defaults to the current month YYYY-MM
+  const getCurrentMonthValue = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = (now.getMonth() + 1).toString().padStart(2, '0');
+    return `${y}-${m}`;
+  };
+
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue());
   const [attendanceData, setAttendanceData] = useState({
-    summary: { totalClasses: 0, presentCount: 0, absentCount: 0, percentage: 100 },
-    subjectWise: [],
+    summary: { totalClasses: 0, totalScheduledPeriods: 0, presentPeriods: 0, absentPeriods: 0, percentage: 100 },
     history: []
   });
   const [timetables, setTimetables] = useState([]);
@@ -39,7 +59,6 @@ export default function StudentDashboard() {
       if (attRes.data.success) {
         setAttendanceData({
           summary: attRes.data.summary,
-          subjectWise: attRes.data.subjectWise,
           history: attRes.data.history || []
         });
       }
@@ -56,25 +75,29 @@ export default function StudentDashboard() {
     }
   };
 
-  // Master list of subjects
-  const allSubjects = useMemo(() => {
-    const defaultSubjects = [
-      'Database Management Systems',
-      'Operating Systems',
-      'Computer Networks',
-      'Software Engineering',
-      'Web Technology Lab',
-      'Data Mining And Visualisation',
-      'Digital Forensics',
-      'Cloud Computing'
-    ];
-    const historySubs = (attendanceData.history || []).map(h => h.subject);
-    const ttSubs = timetables.map(t => t.subject);
-    const set = new Set([...defaultSubjects, ...historySubs, ...ttSubs]);
-    return Array.from(set).filter(Boolean);
-  }, [attendanceData.history, timetables]);
+  // Generate Month options starting from January 2026 up to current date (Requirement 5)
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const startYear = 2026;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const endYear = Math.max(2026, currentYear);
 
-  // Filter history by selected month if needed
+    for (let y = startYear; y <= endYear; y++) {
+      const maxM = (y === currentYear) ? Math.max(currentMonth, 10) : 12;
+      for (let m = 1; m <= maxM; m++) {
+        const val = `${y}-${m.toString().padStart(2, '0')}`;
+        const d = new Date(y, m - 1, 1);
+        const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        options.push({ value: val, label });
+      }
+    }
+    options.push({ value: 'ALL', label: 'All Months' });
+    return options;
+  }, []);
+
+  // Filter history records by selected month
   const filteredHistory = useMemo(() => {
     if (!selectedMonth || selectedMonth === 'ALL') {
       return attendanceData.history;
@@ -82,62 +105,71 @@ export default function StudentDashboard() {
     return attendanceData.history.filter(h => h.attendance_date?.startsWith(selectedMonth));
   }, [attendanceData.history, selectedMonth]);
 
-  // Get unique sorted dates from history
-  const uniqueDates = useMemo(() => {
-    const datesSet = new Set(filteredHistory.map(h => h.attendance_date));
-    return Array.from(datesSet).sort();
+  // Calculate monthly overall period-wise attendance stats (Requirement 4)
+  const monthSummary = useMemo(() => {
+    let totalScheduledPeriods = 0;
+    let presentPeriods = 0;
+    let absentPeriods = 0;
+
+    filteredHistory.forEach(r => {
+      const pCount = r.periods || (r.session === 'Morning' ? 4 : 3);
+      const pres = r.present_periods !== undefined ? r.present_periods : (r.status === 'Present' ? pCount : 0);
+      const abs = r.absent_periods !== undefined ? r.absent_periods : (r.status === 'Absent' ? pCount : 0);
+
+      totalScheduledPeriods += pCount;
+      presentPeriods += pres;
+      absentPeriods += abs;
+    });
+
+    const percentage = totalScheduledPeriods > 0 
+      ? ((presentPeriods / totalScheduledPeriods) * 100).toFixed(2) 
+      : '100.00';
+
+    return {
+      sessionCount: filteredHistory.length,
+      totalScheduledPeriods,
+      presentPeriods,
+      absentPeriods,
+      percentage
+    };
   }, [filteredHistory]);
 
-  // Matrix lookup: { [subject]: { [date]: 'Present' | 'Absent' | 'Not Taken' } }
-  const attendanceMatrix = useMemo(() => {
-    const matrix = {};
-    allSubjects.forEach(sub => {
-      matrix[sub] = {};
-      uniqueDates.forEach(date => {
-        const records = filteredHistory.filter(h => h.subject === sub && h.attendance_date === date);
-        if (records.length === 0) {
-          matrix[sub][date] = 'Not Taken';
-        } else {
-          const hasAbsent = records.some(r => r.status === 'Absent');
-          matrix[sub][date] = hasAbsent ? 'Absent' : 'Present';
-        }
-      });
-    });
-    return matrix;
-  }, [allSubjects, uniqueDates, filteredHistory]);
-
-  // Group history by date for Overall Day Attendance
+  // Calculate Daily Period-Wise Attendance Log (Requirement 3)
   const dayWiseAttendance = useMemo(() => {
     const grouped = {};
     filteredHistory.forEach(rec => {
       const d = rec.attendance_date;
       if (!grouped[d]) {
-        grouped[d] = { date: d, total: 0, present: 0, absent: 0, records: [] };
+        grouped[d] = {
+          date: d,
+          scheduledPeriods: 0,
+          presentPeriods: 0,
+          absentPeriods: 0,
+          sessions: []
+        };
       }
-      grouped[d].total += 1;
-      if (rec.status === 'Present') grouped[d].present += 1;
-      else grouped[d].absent += 1;
-      grouped[d].records.push(rec);
+      const pCount = rec.periods || (rec.session === 'Morning' ? 4 : 3);
+      const pres = rec.present_periods !== undefined ? rec.present_periods : (rec.status === 'Present' ? pCount : 0);
+      const abs = rec.absent_periods !== undefined ? rec.absent_periods : (rec.status === 'Absent' ? pCount : 0);
+
+      grouped[d].scheduledPeriods += pCount;
+      grouped[d].presentPeriods += pres;
+      grouped[d].absentPeriods += abs;
+      grouped[d].sessions.push(rec);
     });
-    return Object.values(grouped).sort((a, b) => b.date.localeCompare(a.date));
+
+    return Object.values(grouped).map(day => {
+      const percentage = day.scheduledPeriods > 0
+        ? ((day.presentPeriods / day.scheduledPeriods) * 100).toFixed(2)
+        : '100.00';
+
+      return {
+        ...day,
+        percentage
+      };
+    }).sort((a, b) => b.date.localeCompare(a.date));
   }, [filteredHistory]);
 
-  // Calculate filtered summary
-  const monthSummary = useMemo(() => {
-    const total = filteredHistory.length;
-    const present = filteredHistory.filter(h => h.status === 'Present').length;
-    const absent = filteredHistory.filter(h => h.status === 'Absent').length;
-    const percentage = total > 0 ? ((present / total) * 100).toFixed(2) : '100.00';
-    
-    // Unique working days in filtered view
-    const workingDays = uniqueDates.length;
-    // Days with at least 1 present
-    const presentDays = dayWiseAttendance.filter(d => d.present > 0).length;
-
-    return { total, present, absent, percentage, workingDays, presentDays };
-  }, [filteredHistory, uniqueDates, dayWiseAttendance]);
-
-  // Format YYYY-MM-DD to DD-MM-YYYY
   const formatDateDisplay = (dateStr) => {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
@@ -145,180 +177,148 @@ export default function StudentDashboard() {
     return dateStr;
   };
 
-  // PDF Export for Image 2 style Attendance Report
-  const exportAttendanceReportPDF = () => {
+  // PDF Export for Weekly Class Timetable
+  const exportTimetablePDF = () => {
     const doc = new jsPDF('landscape');
 
-    // Title Banner
-    doc.setFillColor(37, 99, 235); // Blue-600
+    doc.setFillColor(37, 99, 235);
     doc.rect(0, 0, 297, 24, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
-    doc.text(`${user?.name || ''} - ${user?.class_section || ''} Attendance Report`, 14, 16);
+    doc.text('OFFICIAL WEEKLY CLASS TIMETABLE', 14, 16);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(70);
-    doc.text(`Register No: ${user?.register_number || ''} | Department: ${user?.department || ''} | Year: ${user?.year || ''}`, 14, 32);
+    doc.text(`Student: ${user?.name || ''} (${user?.register_number || ''}) | Department: ${user?.department || ''} | Class Section: ${user?.class_section || ''}`, 14, 32);
 
-    let startX = 14;
-    let startY = 38;
-    const colWidthSubject = 65;
-    const availableWidth = 269 - colWidthSubject;
-    const numDates = Math.max(1, uniqueDates.length);
-    const colWidthDate = Math.min(22, availableWidth / numDates);
+    let startY = 40;
+    const colWidthDay = 30;
+    const colWidthPeriod = 33;
 
-    // Table Header
     doc.setFillColor(241, 245, 249);
-    doc.rect(startX, startY, colWidthSubject + numDates * colWidthDate, 10, 'F');
+    doc.rect(14, startY, colWidthDay + 7 * colWidthPeriod, 10, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
-    doc.text('Subject', startX + 4, startY + 6.5);
+    doc.text('Day / Period', 18, startY + 6.5);
 
-    uniqueDates.forEach((d, i) => {
-      const dx = startX + colWidthSubject + i * colWidthDate;
-      doc.setFontSize(7.5);
-      doc.text(formatDateDisplay(d), dx + 2, startY + 6.5);
+    TIMETABLE_PERIODS.forEach((p, pIdx) => {
+      doc.setFontSize(7);
+      doc.text(`P${pIdx + 1}: ${p.time}`, 14 + colWidthDay + pIdx * colWidthPeriod + 2, startY + 6.5);
     });
 
     let currentY = startY + 10;
-
-    // Table Rows
-    allSubjects.forEach((sub, sIdx) => {
-      const rowHeight = 8;
-      if (sIdx % 2 === 1) {
+    WEEK_DAYS.forEach((day, dIdx) => {
+      const rowHeight = 18;
+      if (dIdx % 2 === 1) {
         doc.setFillColor(248, 250, 252);
-        doc.rect(startX, currentY, colWidthSubject + numDates * colWidthDate, rowHeight, 'F');
+        doc.rect(14, currentY, colWidthDay + 7 * colWidthPeriod, rowHeight, 'F');
       }
-
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(9);
       doc.setTextColor(37, 99, 235);
-      const subTitle = sub.length > 32 ? sub.substring(0, 30) + '..' : sub;
-      doc.text(subTitle, startX + 4, currentY + 5.5);
+      doc.text(day, 18, currentY + 10);
 
-      uniqueDates.forEach((d, i) => {
-        const dx = startX + colWidthSubject + i * colWidthDate;
-        const status = attendanceMatrix[sub][d];
+      const dayItems = timetables.filter(t => t.day_of_week?.toLowerCase() === day.toLowerCase());
 
-        if (status === 'Present') {
-          doc.setFillColor(220, 252, 231);
-          doc.roundedRect(dx + 1, currentY + 1.5, colWidthDate - 2, 5, 1, 1, 'F');
-          doc.setTextColor(22, 101, 52);
-          doc.setFontSize(7);
+      TIMETABLE_PERIODS.forEach((p, pIdx) => {
+        const match = dayItems.find(t => t.session_time === p.time) || dayItems[pIdx];
+        const x = 14 + colWidthDay + pIdx * colWidthPeriod;
+
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(x, currentY, colWidthPeriod, rowHeight);
+
+        if (match) {
           doc.setFont('helvetica', 'bold');
-          doc.text('Present', dx + 2, currentY + 5);
-        } else if (status === 'Absent') {
-          doc.setFillColor(254, 226, 226);
-          doc.roundedRect(dx + 1, currentY + 1.5, colWidthDate - 2, 5, 1, 1, 'F');
-          doc.setTextColor(153, 27, 27);
-          doc.setFontSize(7);
-          doc.setFont('helvetica', 'bold');
-          doc.text('Absent', dx + 2, currentY + 5);
-        } else {
-          doc.setFillColor(254, 242, 242);
-          doc.roundedRect(dx + 1, currentY + 1.5, colWidthDate - 2, 5, 1, 1, 'F');
-          doc.setTextColor(220, 38, 38);
-          doc.setFontSize(6.5);
+          doc.setFontSize(7.5);
+          doc.setTextColor(15, 23, 42);
+          const sub = match.subject.length > 18 ? match.subject.substring(0, 16) + '..' : match.subject;
+          doc.text(sub, x + 2, currentY + 6);
+
           doc.setFont('helvetica', 'normal');
-          doc.text('Not Taken', dx + 1.5, currentY + 5);
+          doc.setFontSize(6.5);
+          doc.setTextColor(71, 85, 105);
+          doc.text(`Fac: ${match.faculty_name || 'N/A'}`, x + 2, currentY + 11);
+          doc.text(`Room: ${match.room || '301'}`, x + 2, currentY + 15);
+        } else {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(148, 163, 184);
+          doc.text('Free Period', x + 4, currentY + 10);
         }
       });
 
       currentY += rowHeight;
     });
 
-    // Summary Box
-    currentY += 6;
-    doc.setFillColor(236, 253, 245);
-    doc.setDrawColor(167, 243, 208);
-    doc.roundedRect(startX, currentY, 269, 25, 3, 3, 'FD');
+    doc.save(`Weekly_Timetable_${user?.register_number || 'Student'}.pdf`);
+  };
 
+  // PDF Export for Semester Exam Schedule
+  const exportExamSchedulePDF = () => {
+    const doc = new jsPDF();
+
+    doc.setFillColor(219, 39, 119); // Pink-600
+    doc.rect(0, 0, 210, 24, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(16, 122, 87);
-    doc.text('Summary Of Attendance', startX + 6, currentY + 8);
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text('SEMESTER EXAMINATION SCHEDULE', 14, 16);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(70);
+    doc.text(`Student: ${user?.name || ''} (${user?.register_number || ''})`, 14, 32);
+    doc.text(`Department: ${user?.department || ''} | Semester: Semester 5`, 14, 38);
+
+    let startY = 46;
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, startY, 182, 10, 'F');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.setTextColor(30, 41, 59);
-    doc.text(`Present Days out of Working Days: ${monthSummary.presentDays}/${monthSummary.workingDays}`, startX + 6, currentY + 15);
-    doc.text(`Attendance Percentage: ${monthSummary.percentage} %`, startX + 6, currentY + 21);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Exam Date', 18, startY + 6.5);
+    doc.text('Subject', 55, startY + 6.5);
+    doc.text('Exam Time', 115, startY + 6.5);
+    doc.text('Semester', 155, startY + 6.5);
+    doc.text('Hall', 180, startY + 6.5);
 
-    doc.save(`${user?.name || 'Student'}_Attendance_Report.pdf`);
-  };
+    let currentY = startY + 10;
+    examTimetables.forEach((item, idx) => {
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(14, currentY, 182, 10, 'F');
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(37, 99, 235);
+      doc.text(item.exam_date || '', 18, currentY + 6.5);
 
-  // Export Timetable as PDF
-  const exportTimetablePDF = (type) => {
-    const doc = new jsPDF();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(37, 99, 235);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(item.subject || '', 55, currentY + 6.5);
 
-    if (type === 'class') {
-      doc.text('OFFICIAL CLASS TIMETABLE', 14, 20);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Student: ${user?.name} (${user?.register_number || ''})`, 14, 28);
-      doc.text(`Department: ${user?.department || ''} | Year: ${user?.year || ''} | Class: ${user?.class_section || ''}`, 14, 34);
-
-      let y = 46;
-      doc.setFontSize(11);
-      doc.setTextColor(0);
-      doc.text('Day / Time', 14, y);
-      doc.text('Subject', 70, y);
-      doc.text('Faculty', 130, y);
-      doc.text('Room', 175, y);
-      doc.line(14, y + 2, 195, y + 2);
-
-      y += 8;
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      timetables.forEach((item) => {
-        doc.text(`${item.day_of_week} (${item.session_time})`, 14, y);
-        doc.text(item.subject, 70, y);
-        doc.text(item.faculty_name, 130, y);
-        doc.text(item.room || '', 175, y);
-        y += 8;
-      });
+      doc.setTextColor(71, 85, 105);
+      doc.text(item.exam_time || '', 115, currentY + 6.5);
+      doc.text(item.semester || 'Semester 5', 155, currentY + 6.5);
 
-      doc.save(`Class_Timetable_${user?.register_number || 'Student'}.pdf`);
-    } else {
-      doc.text('OFFICIAL EXAM TIMETABLE', 14, 20);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Student: ${user?.name} (${user?.register_number || ''})`, 14, 28);
-      doc.text(`Department: ${user?.department || ''} | Year: ${user?.year || ''} | Semester 5`, 14, 34);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(219, 39, 119);
+      doc.text(item.exam_hall || 'Main Hall', 180, currentY + 6.5);
 
-      let y = 46;
-      doc.setFontSize(11);
-      doc.setTextColor(0);
-      doc.text('Date', 14, y);
-      doc.text('Subject', 50, y);
-      doc.text('Exam Timing', 115, y);
-      doc.text('Hall', 170, y);
-      doc.line(14, y + 2, 195, y + 2);
+      currentY += 10;
+    });
 
-      y += 8;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      examTimetables.forEach((item) => {
-        doc.text(item.exam_date, 14, y);
-        doc.text(item.subject, 50, y);
-        doc.text(item.exam_time, 115, y);
-        doc.text(item.exam_hall || '', 170, y);
-        y += 8;
-      });
-
-      doc.save(`Exam_Timetable_${user?.register_number || 'Student'}.pdf`);
-    }
+    doc.save(`Exam_Schedule_${user?.register_number || 'Student'}.pdf`);
   };
 
   const pieData = [
-    { name: 'Present', value: monthSummary.present, color: '#10b981' },
-    { name: 'Absent', value: monthSummary.absent, color: '#ef4444' }
+    { name: 'Present Periods', value: monthSummary.presentPeriods, color: '#10b981' },
+    { name: 'Absent Periods', value: monthSummary.absentPeriods, color: '#ef4444' }
   ];
 
   return (
@@ -327,10 +327,8 @@ export default function StudentDashboard() {
 
       <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-6">
 
-        {/* Student Profile Info Banner (Clean White Theme) */}
+        {/* Student Profile Banner & Month Filter (Image 1 Style) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-2xl -z-10 pointer-events-none"></div>
-
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
               {user?.name?.charAt(0) || 'S'}
@@ -351,7 +349,7 @@ export default function StudentDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Month Selector Filter */}
+            {/* Month Selector Filter (Jan 2026 to Current Month) */}
             <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
               <Filter className="w-4 h-4 text-slate-500 ml-2" />
               <select
@@ -359,14 +357,14 @@ export default function StudentDashboard() {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="bg-white border-0 text-xs font-bold text-slate-800 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer"
               >
-                <option value="2026-08">August 2026</option>
-                <option value="2026-07">July 2026</option>
-                <option value="ALL">All Months</option>
+                {monthOptions.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
               </select>
             </div>
 
-            {/* Attendance Rate Card */}
-            <div className="px-5 py-2.5 rounded-2xl bg-slate-900 text-white text-right shadow-md">
+            {/* Attendance Rate Card for Selected Month (Requirement 4) */}
+            <div className="px-6 py-3 rounded-2xl bg-slate-900 text-white text-right shadow-md">
               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Attendance Rate</div>
               <div className={`text-2xl font-black ${Number(monthSummary.percentage) >= 75 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {monthSummary.percentage}%
@@ -378,41 +376,30 @@ export default function StudentDashboard() {
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200 scrollbar-none">
           <button
-            onClick={() => setActiveTab('reportMatrix')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
-              activeTab === 'reportMatrix'
+            onClick={() => setActiveTab('overallStats')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
+              activeTab === 'overallStats'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200'
             }`}
           >
-            <FileSpreadsheetIcon className="w-4 h-4" /> Attendance Report (Grid Matrix)
-          </button>
-
-          <button
-            onClick={() => setActiveTab('subjectWise')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
-              activeTab === 'subjectWise'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" /> Subject-wise & Daily Stats
+            <PieChartIcon className="w-4 h-4" /> Overall Attendance & Stats
           </button>
 
           <button
             onClick={() => setActiveTab('monthlyCalendar')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
               activeTab === 'monthlyCalendar'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200'
             }`}
           >
-            <Calendar className="w-4 h-4" /> Monthly View
+            <Calendar className="w-4 h-4" /> Monthly Calendar
           </button>
 
           <button
             onClick={() => setActiveTab('timetable')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
               activeTab === 'timetable'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200'
@@ -423,7 +410,7 @@ export default function StudentDashboard() {
 
           <button
             onClick={() => setActiveTab('exam')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
               activeTab === 'exam'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200'
@@ -433,139 +420,46 @@ export default function StudentDashboard() {
           </button>
         </div>
 
-        {/* TAB 1: ATTENDANCE REPORT MATRIX (IMAGE 2 STYLE) */}
-        {activeTab === 'reportMatrix' && (
+        {/* TAB 1: OVERALL ATTENDANCE & STATS (Requirements 3 & 4) */}
+        {activeTab === 'overallStats' && (
           <div className="space-y-6">
-            {/* Header Banner matching Image 2 */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="bg-blue-600 px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-                    {user?.name || ''} {user?.class_section ? `- ${user.class_section}` : ''} Attendance Report
-                  </h3>
-                  <p className="text-blue-100 text-xs mt-0.5">
-                    Subject-wise attendance matrix by dates ({selectedMonth === 'ALL' ? 'All Months' : selectedMonth})
-                  </p>
-                </div>
-
-                <button
-                  onClick={exportAttendanceReportPDF}
-                  className="px-4 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs flex items-center gap-2 shadow-sm transition self-start sm:self-auto"
-                >
-                  <Download className="w-4 h-4" /> Export Report PDF
-                </button>
-              </div>
-
-              {/* Grid Matrix Table */}
-              <div className="overflow-x-auto p-4">
-                <table className="w-full text-left text-xs border-collapse border border-slate-200">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold">
-                      <th className="p-3 border border-slate-300 min-w-[200px] bg-slate-100">Subject</th>
-                      {uniqueDates.map(date => (
-                        <th key={date} className="p-2.5 border border-slate-300 text-center min-w-[95px] font-mono text-[11px]">
-                          {formatDateDisplay(date)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allSubjects.map((subject, idx) => (
-                      <tr key={subject} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
-                        <td className="p-3 font-bold text-blue-600 border border-slate-300">
-                          {subject}
-                        </td>
-                        {uniqueDates.map(date => {
-                          const status = attendanceMatrix[subject][date];
-                          return (
-                            <td key={date} className="p-2 border border-slate-300 text-center">
-                              {status === 'Present' && (
-                                <span className="inline-block px-3 py-1 text-[11px] font-extrabold text-emerald-800 bg-emerald-500/20 rounded-full border border-emerald-400 shadow-sm">
-                                  Present
-                                </span>
-                              )}
-                              {status === 'Absent' && (
-                                <span className="inline-block px-3 py-1 text-[11px] font-extrabold text-red-700 bg-red-100 rounded-full border border-red-300">
-                                  Absent
-                                </span>
-                              )}
-                              {status === 'Not Taken' && (
-                                <span className="inline-block px-3 py-1 text-[11px] font-bold text-rose-700 bg-rose-500/10 rounded-full border border-rose-200">
-                                  Not Taken
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Summary Of Attendance Box matching Image 2 */}
-              <div className="p-6 bg-emerald-50/80 border-t border-emerald-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <h4 className="text-lg font-black text-emerald-900 tracking-tight">Summary Of Attendance</h4>
-                </div>
-
-                <div className="space-y-2 text-sm font-bold text-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600">Present Days out of Working Days:</span>
-                    <span className="text-slate-900 font-extrabold text-base bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300">
-                      {monthSummary.presentDays} / {monthSummary.workingDays}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600">Attendance Percentage:</span>
-                    <span className="text-emerald-700 font-black text-lg bg-white px-3 py-0.5 rounded-lg border border-emerald-300 shadow-sm">
-                      {monthSummary.percentage} %
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: SUBJECT-WISE & DAY-WISE ATTENDANCE */}
-        {activeTab === 'subjectWise' && (
-          <div className="space-y-6">
-            {/* Quick Stat Cards */}
+            {/* Quick Period Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-slate-500 font-bold mb-1 uppercase tracking-wider">Total Sessions</div>
-                <div className="text-3xl font-black text-slate-900">{monthSummary.total}</div>
+                <div className="text-xs text-slate-500 font-bold mb-1 uppercase tracking-wider">Scheduled Periods</div>
+                <div className="text-3xl font-black text-slate-900">{monthSummary.totalScheduledPeriods}</div>
+                <div className="text-[11px] text-slate-400 font-medium mt-1">7 periods per full day</div>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-emerald-600 font-bold mb-1 uppercase tracking-wider">Sessions Attended</div>
+                <div className="text-xs text-emerald-600 font-bold mb-1 uppercase tracking-wider">Periods Attended</div>
                 <div className="text-3xl font-black text-emerald-600 flex items-center gap-2">
-                  {monthSummary.present} <CheckCircle2 className="w-6 h-6" />
+                  {monthSummary.presentPeriods} <CheckCircle2 className="w-6 h-6" />
                 </div>
+                <div className="text-[11px] text-emerald-600/80 font-medium mt-1">Total present periods</div>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-rose-600 font-bold mb-1 uppercase tracking-wider">Total Absences</div>
+                <div className="text-xs text-rose-600 font-bold mb-1 uppercase tracking-wider">Periods Absent</div>
                 <div className="text-3xl font-black text-rose-600 flex items-center gap-2">
-                  {monthSummary.absent} <XCircle className="w-6 h-6" />
+                  {monthSummary.absentPeriods} <XCircle className="w-6 h-6" />
                 </div>
+                <div className="text-[11px] text-rose-600/80 font-medium mt-1">Total absent periods</div>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">Overall Percentage</div>
+                <div className="text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">Overall Rate</div>
                 <div className="text-3xl font-black text-blue-600">{monthSummary.percentage}%</div>
+                <div className="text-[11px] text-blue-600/80 font-medium mt-1">Across all subjects</div>
               </div>
             </div>
 
-            {/* Charts & Subject Breakdown */}
+            {/* Attendance Chart & Daily Period Log */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Pie Chart Card */}
+              {/* Ratio Chart */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
                 <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <PieChartIcon className="w-4 h-4 text-blue-600" /> Attendance Ratio
+                  <PieChartIcon className="w-4 h-4 text-blue-600" /> Overall Period Attendance Ratio
                 </h3>
                 <div className="w-full h-52">
                   <ResponsiveContainer width="100%" height="100%">
@@ -590,119 +484,84 @@ export default function StudentDashboard() {
                 <div className="flex gap-6 text-xs mt-2 font-bold">
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-                    <span className="text-slate-700">Present ({monthSummary.present})</span>
+                    <span className="text-slate-700">Present ({monthSummary.presentPeriods} Periods)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
-                    <span className="text-slate-700">Absent ({monthSummary.absent})</span>
+                    <span className="text-slate-700">Absent ({monthSummary.absentPeriods} Periods)</span>
                   </div>
                 </div>
               </div>
 
-              {/* Subject Wise Cards Grid */}
+              {/* Daily Period-Wise Attendance Log Table (Requirement 3) */}
               <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-blue-600" /> Subject-wise Performance Breakdown
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {attendanceData.subjectWise.map((sub) => (
-                    <div key={sub.subject} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-extrabold text-slate-900 truncate max-w-[180px]">{sub.subject}</h4>
-                        <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
-                          Number(sub.percentage) >= 75 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                        }`}>
-                          {sub.percentage}%
-                        </span>
-                      </div>
-
-                      {/* Progress bar */}
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            Number(sub.percentage) >= 75 ? 'bg-emerald-500' : 'bg-rose-500'
-                          }`}
-                          style={{ width: `${Math.min(100, Math.max(0, sub.percentage))}%` }}
-                        ></div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                        <span>Attended: <strong className="text-emerald-600">{sub.present}</strong></span>
-                        <span>Absent: <strong className="text-rose-600">{sub.absent}</strong></span>
-                        <span>Total: <strong className="text-slate-700">{sub.total}</strong></span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-blue-600" /> Daily Overall Period Log
+                  </h3>
+                  <span className="text-xs text-slate-500 font-medium">7 Periods per day</span>
                 </div>
-              </div>
-            </div>
 
-            {/* Overall Day-wise Attendance Table */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-600" /> Day-by-Day Attendance Log
-                </h3>
-                <span className="text-xs text-slate-500 font-medium">Daily attendance summary</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-3.5 rounded-l-xl">Date</th>
-                      <th className="p-3.5">Total Classes</th>
-                      <th className="p-3.5">Present Sessions</th>
-                      <th className="p-3.5">Absent Sessions</th>
-                      <th className="p-3.5 rounded-r-xl">Overall Day Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                    {dayWiseAttendance.length === 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
-                        <td colSpan="5" className="text-center py-8 text-slate-400 font-medium">
-                          No daily records found for selected period.
-                        </td>
+                        <th className="p-3.5 rounded-l-xl">Date</th>
+                        <th className="p-3.5">Scheduled Periods</th>
+                        <th className="p-3.5">Present Periods</th>
+                        <th className="p-3.5">Absent Periods</th>
+                        <th className="p-3.5">Daily Rate</th>
+                        <th className="p-3.5 rounded-r-xl">Overall Day Status</th>
                       </tr>
-                    ) : (
-                      dayWiseAttendance.map((day) => {
-                        const dayStatus = day.absent === 0 ? 'Full Present' : day.present === 0 ? 'Full Absent' : 'Partial';
-                        return (
-                          <tr key={day.date} className="hover:bg-slate-50 transition">
-                            <td className="p-3.5 font-bold text-slate-900 font-mono">{formatDateDisplay(day.date)}</td>
-                            <td className="p-3.5 font-bold">{day.total} Sessions</td>
-                            <td className="p-3.5 text-emerald-600 font-bold">{day.present}</td>
-                            <td className="p-3.5 text-rose-600 font-bold">{day.absent}</td>
-                            <td className="p-3.5">
-                              {dayStatus === 'Full Present' && (
-                                <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Present
-                                </span>
-                              )}
-                              {dayStatus === 'Full Absent' && (
-                                <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-red-100 text-red-800 border border-red-300 inline-flex items-center gap-1">
-                                  <XCircle className="w-3.5 h-3.5" /> Absent
-                                </span>
-                              )}
-                              {dayStatus === 'Partial' && (
-                                <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5" /> Partial ({day.present}/{day.total})
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                      {dayWiseAttendance.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="text-center py-8 text-slate-400 font-medium">
+                            No attendance records found for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        dayWiseAttendance.map((day) => {
+                          const isFullPresent = day.absentPeriods === 0 && day.presentPeriods > 0;
+                          const isFullAbsent = day.presentPeriods === 0 && day.absentPeriods > 0;
+                          return (
+                            <tr key={day.date} className="hover:bg-slate-50 transition">
+                              <td className="p-3.5 font-bold text-slate-900 font-mono">{formatDateDisplay(day.date)}</td>
+                              <td className="p-3.5 font-bold text-slate-800">{day.scheduledPeriods} Periods</td>
+                              <td className="p-3.5 text-emerald-600 font-extrabold">{day.presentPeriods}</td>
+                              <td className="p-3.5 text-rose-600 font-extrabold">{day.absentPeriods}</td>
+                              <td className="p-3.5 font-black text-blue-600">{day.percentage}%</td>
+                              <td className="p-3.5">
+                                {isFullPresent && (
+                                  <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Full Present
+                                  </span>
+                                )}
+                                {isFullAbsent && (
+                                  <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-red-100 text-red-800 border border-red-300 inline-flex items-center gap-1">
+                                    <XCircle className="w-3.5 h-3.5" /> Full Absent
+                                  </span>
+                                )}
+                                {!isFullPresent && !isFullAbsent && (
+                                  <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Partial ({day.presentPeriods}/{day.scheduledPeriods})
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 3: MONTHLY VIEW / CALENDAR */}
+        {/* TAB 2: MONTHLY CALENDAR (Requirement 4 & 5) */}
         {activeTab === 'monthlyCalendar' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
@@ -710,7 +569,7 @@ export default function StudentDashboard() {
                 <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
                   <Calendar className="w-6 h-6 text-blue-600" /> Monthly Attendance Calendar
                 </h3>
-                <p className="text-xs text-slate-500">View present and absent status for each day of the month</p>
+                <p className="text-xs text-slate-500">View period-wise attendance status for each day of the month</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -718,58 +577,57 @@ export default function StudentDashboard() {
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
                 >
-                  <option value="2026-08">August 2026</option>
-                  <option value="2026-07">July 2026</option>
+                  {monthOptions.filter(m => m.value !== 'ALL').map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            {/* Calendar Grid View */}
+            {/* Calendar Grid View (31 days) */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {Array.from({ length: 31 }, (_, i) => {
                 const dayNum = (i + 1).toString().padStart(2, '0');
-                const monthStr = selectedMonth === 'ALL' ? '2026-08' : selectedMonth;
+                const monthStr = (selectedMonth === 'ALL' || !selectedMonth) ? getCurrentMonthValue() : selectedMonth;
                 const fullDate = `${monthStr}-${dayNum}`;
 
-                const recordsForDay = filteredHistory.filter(h => h.attendance_date === fullDate);
-                const hasPresent = recordsForDay.some(h => h.status === 'Present');
-                const hasAbsent = recordsForDay.some(h => h.status === 'Absent');
+                const dayObj = dayWiseAttendance.find(d => d.date === fullDate);
 
                 let cardBg = 'bg-slate-50 border-slate-200 text-slate-400';
-                let badgeText = 'No Class';
+                let badgeText = 'NO CLASS';
                 let badgeStyle = 'bg-slate-200 text-slate-600';
 
-                if (recordsForDay.length > 0) {
-                  if (hasAbsent && !hasPresent) {
+                if (dayObj) {
+                  if (dayObj.absentPeriods > 0 && dayObj.presentPeriods === 0) {
                     cardBg = 'bg-red-50 border-red-200 text-red-900';
-                    badgeText = 'Absent';
+                    badgeText = 'ABSENT';
                     badgeStyle = 'bg-red-600 text-white font-bold';
-                  } else if (hasAbsent && hasPresent) {
+                  } else if (dayObj.absentPeriods > 0 && dayObj.presentPeriods > 0) {
                     cardBg = 'bg-amber-50 border-amber-200 text-amber-900';
-                    badgeText = 'Partial';
+                    badgeText = `PARTIAL (${dayObj.presentPeriods}/${dayObj.scheduledPeriods})`;
                     badgeStyle = 'bg-amber-500 text-white font-bold';
-                  } else {
+                  } else if (dayObj.presentPeriods > 0) {
                     cardBg = 'bg-emerald-50 border-emerald-200 text-emerald-900';
-                    badgeText = 'Present';
+                    badgeText = 'PRESENT';
                     badgeStyle = 'bg-emerald-600 text-white font-bold';
                   }
                 }
 
                 return (
-                  <div key={fullDate} className={`p-4 rounded-2xl border ${cardBg} flex flex-col justify-between h-28 shadow-xs`}>
+                  <div key={fullDate} className={`p-4 rounded-2xl border ${cardBg} flex flex-col justify-between h-28 shadow-xs hover:shadow-md transition`}>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold opacity-70">Day {i + 1}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${badgeStyle}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold ${badgeStyle}`}>
                         {badgeText}
                       </span>
                     </div>
 
-                    <div className="text-lg font-black">{dayNum}</div>
+                    <div className="text-xl font-black">{dayNum}</div>
 
-                    <div className="text-[10px] opacity-80 truncate">
-                      {recordsForDay.length > 0 ? `${recordsForDay.length} Session(s)` : 'No records'}
+                    <div className="text-[10px] opacity-80 truncate font-medium">
+                      {dayObj ? `${dayObj.presentPeriods}/${dayObj.scheduledPeriods} Periods` : 'No records'}
                     </div>
                   </div>
                 );
@@ -798,85 +656,135 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* TAB 4: CLASS TIMETABLE */}
+        {/* TAB 3: WEEKLY CLASS TIMETABLE */}
         {activeTab === 'timetable' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-blue-600" /> Weekly Class Schedule
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Clock className="w-6 h-6 text-blue-600" /> Weekly Class Schedule
                 </h3>
-                <p className="text-xs text-slate-500">Class: {user?.class_section} • Department: {user?.department}</p>
+                <p className="text-xs text-slate-500">
+                  Class: <strong className="text-slate-800">{user?.class_section || 'CSE-A'}</strong> • Department: <strong className="text-slate-800">{user?.department || 'Computer Science & Engineering'}</strong>
+                </p>
               </div>
 
               <button
-                onClick={() => exportTimetablePDF('class')}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 shadow-md transition self-start sm:self-auto"
+                onClick={exportTimetablePDF}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold flex items-center gap-2 shadow-md shadow-blue-600/20 transition self-start sm:self-auto"
               >
                 <Download className="w-4 h-4" /> Download Timetable PDF
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {timetables.map((item) => (
-                <div key={item.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 hover:border-blue-300 transition">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-blue-600 uppercase tracking-wider">{item.day_of_week}</span>
-                    <span className="text-[11px] bg-blue-50 text-blue-700 font-mono px-2 py-0.5 rounded-md border border-blue-200 font-bold">
-                      {item.session_time}
-                    </span>
+            {/* 7 Periods in single row for each day */}
+            <div className="space-y-4">
+              {WEEK_DAYS.map((day) => {
+                const dayItems = timetables.filter(t => t.day_of_week?.toLowerCase() === day.toLowerCase());
+
+                return (
+                  <div key={day} className="bg-slate-50/80 border border-slate-200 p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-blue-700 bg-blue-100 px-3.5 py-1 rounded-full border border-blue-200">
+                        {day}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-bold">7 Periods Layout</span>
+                    </div>
+
+                    {/* Single Horizontal Row of 7 Periods */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                      {TIMETABLE_PERIODS.map((period, pIdx) => {
+                        const item = dayItems.find(t => t.session_time === period.time) || dayItems[pIdx];
+
+                        return (
+                          <div key={period.id} className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between min-h-[115px]">
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">{period.name}</span>
+                                <span className="text-[9px] bg-blue-50 text-blue-700 font-mono font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                                  {period.time.split(' ')[0]}
+                                </span>
+                              </div>
+
+                              {item ? (
+                                <h5 className="text-xs font-black text-slate-900 leading-snug line-clamp-2">{item.subject}</h5>
+                              ) : (
+                                <span className="text-[11px] font-bold text-slate-400 italic">Self Study</span>
+                              )}
+                            </div>
+
+                            {item ? (
+                              <div className="text-[10px] text-slate-500 font-medium pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span className="truncate max-w-[70px] font-bold text-slate-700">{item.faculty_name}</span>
+                                <span className="text-blue-600 font-extrabold">{item.room || '301'}</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-slate-300 font-bold pt-2 border-t border-slate-100">
+                                Lab / Free
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <h4 className="text-sm font-extrabold text-slate-900">{item.subject}</h4>
-                  <div className="text-xs text-slate-500 flex items-center justify-between pt-2 border-t border-slate-200">
-                    <span>Faculty: <strong className="text-slate-800">{item.faculty_name}</strong></span>
-                    <span className="text-blue-700 font-bold">{item.room}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* TAB 5: EXAM SCHEDULE */}
+        {/* TAB 4: SEMESTER EXAM SCHEDULE */}
         {activeTab === 'exam' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-pink-600" /> Semester Examination Schedule
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <FileText className="w-6 h-6 text-pink-600" /> Semester Examination Schedule
                 </h3>
-                <p className="text-xs text-slate-500">Department: {user?.department} • Semester 5</p>
+                <p className="text-xs text-slate-500">
+                  Department: <strong className="text-slate-800">{user?.department || 'Computer Science & Engineering'}</strong> • Semester 5
+                </p>
               </div>
 
               <button
-                onClick={() => exportTimetablePDF('exam')}
-                className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold flex items-center gap-2 shadow-md transition self-start sm:self-auto"
+                onClick={exportExamSchedulePDF}
+                className="px-5 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-extrabold flex items-center gap-2 shadow-md shadow-pink-600/20 transition self-start sm:self-auto"
               >
                 <Download className="w-4 h-4" /> Download Exam Schedule PDF
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Exam Schedule Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                <thead className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200">
                   <tr>
-                    <th className="p-3.5 rounded-l-xl">Exam Date</th>
-                    <th className="p-3.5">Subject</th>
-                    <th className="p-3.5">Exam Time</th>
-                    <th className="p-3.5">Semester</th>
-                    <th className="p-3.5 rounded-r-xl">Examination Hall</th>
+                    <th className="p-4">Exam Date</th>
+                    <th className="p-4">Subject</th>
+                    <th className="p-4">Exam Time</th>
+                    <th className="p-4">Semester</th>
+                    <th className="p-4">Examination Hall</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                  {examTimetables.map((exam) => (
-                    <tr key={exam.id} className="hover:bg-slate-50 transition">
-                      <td className="p-3.5 font-bold text-blue-600 font-mono">{exam.exam_date}</td>
-                      <td className="p-3.5 font-bold text-slate-900">{exam.subject}</td>
-                      <td className="p-3.5 font-mono">{exam.exam_time}</td>
-                      <td className="p-3.5">{exam.semester}</td>
-                      <td className="p-3.5 text-pink-700 font-bold">{exam.exam_hall || ''}</td>
+                <tbody className="divide-y divide-slate-100 text-slate-800 font-medium">
+                  {examTimetables.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-8 text-slate-400 font-bold">
+                        No upcoming examination schedule records available.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    examTimetables.map((exam) => (
+                      <tr key={exam.id} className="hover:bg-slate-50/80 transition">
+                        <td className="p-4 font-bold text-blue-600 font-mono">{exam.exam_date}</td>
+                        <td className="p-4 font-black text-slate-900">{exam.subject}</td>
+                        <td className="p-4 font-mono font-bold text-slate-700">{exam.exam_time}</td>
+                        <td className="p-4 font-bold text-slate-600">{exam.semester || 'Semester 5'}</td>
+                        <td className="p-4 text-pink-600 font-extrabold">{exam.exam_hall || 'Main Exam Hall A'}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -885,29 +793,5 @@ export default function StudentDashboard() {
 
       </main>
     </div>
-  );
-}
-
-// Icon Helper Component
-function FileSpreadsheetIcon(props) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-      <path d="M8 13h8" />
-      <path d="M8 17h8" />
-      <path d="M10 9h.01" />
-    </svg>
   );
 }

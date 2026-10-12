@@ -45,7 +45,7 @@ export const getHeadDashboardStats = async (req, res) => {
         const std = mockStore.students.find(s => s.id === a.student_id);
         return {
           ...a,
-          student_name: std ? std.name : 'Student',
+          student_name: std ? std.name : (a.register_number || 'Unknown'),
           parent_mobile: std ? std.parent_mobile : 'N/A'
         };
       });
@@ -106,7 +106,7 @@ export const getAttendanceReports = async (req, res) => {
       const std = mockStore.students.find(s => s.id === a.student_id);
       return {
         ...a,
-        student_name: std ? std.name : 'Student',
+        student_name: std ? std.name : (a.register_number || 'Unknown'),
         parent_mobile: std ? std.parent_mobile : 'N/A'
       };
     });

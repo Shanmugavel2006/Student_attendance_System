@@ -3,6 +3,7 @@ import { sendParentAbsenceSMS } from '../config/sms.js';
 
 /**
  * Submit or update attendance for a class session
+ * Automatically calculates period-wise attendance for 7 periods per day (Morning: 4, Afternoon: 3)
  */
 export const submitAttendance = async (req, res) => {
   const { department, year, classSection, subject, date, session, records } = req.body;
@@ -12,22 +13,26 @@ export const submitAttendance = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid payload for attendance submission.' });
   }
 
+  // Determine period count based on session (Morning: 4 periods, Afternoon: 3 periods = 7 total per day)
+  const periodCount = session === 'Morning' ? 4 : 3;
   const smsDispatches = [];
 
   if (isUsingMySQL && pool) {
     try {
       for (const record of records) {
-        // Upsert / Save attendance
+        const presentPeriods = record.status === 'Present' ? periodCount : 0;
+        const absentPeriods = record.status === 'Absent' ? periodCount : 0;
+
+        // Upsert / Save attendance with period-wise counts
         await pool.query(
-          `INSERT INTO attendance (student_id, register_number, department, year, class_section, subject, attendance_date, session, status, marked_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE status = VALUES(status), marked_by = VALUES(marked_by)`,
-          [record.studentId, record.registerNumber, department, year, classSection, subject, date, session, record.status, markedBy]
+          `INSERT INTO attendance (student_id, register_number, department, year, class_section, subject, attendance_date, session, status, marked_by, periods, present_periods, absent_periods)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE status = VALUES(status), marked_by = VALUES(marked_by), periods = VALUES(periods), present_periods = VALUES(present_periods), absent_periods = VALUES(absent_periods)`,
+          [record.studentId, record.registerNumber, department, year, classSection, subject, date, session, record.status, markedBy, periodCount, presentPeriods, absentPeriods]
         );
 
-        // If marked Absent, send SMS to Parent
+        // Send parent SMS if marked Absent
         if (record.status === 'Absent') {
-          // Fetch parent phone
           const [stdRows] = await pool.query(`SELECT * FROM students WHERE id = ?`, [record.studentId]);
           if (stdRows.length > 0) {
             const student = stdRows[0];
@@ -47,7 +52,7 @@ export const submitAttendance = async (req, res) => {
 
       return res.json({
         success: true,
-        message: `Attendance submitted successfully for ${records.length} students!`,
+        message: `Attendance submitted successfully for ${records.length} students (${session} session - ${periodCount} periods)!`,
         smsSentCount: smsDispatches.length
       });
     } catch (err) {
@@ -57,13 +62,20 @@ export const submitAttendance = async (req, res) => {
 
   // Fallback to Mock Store
   records.forEach(rec => {
-    // Remove existing record for same date, session, subject, student
+    const presentPeriods = rec.status === 'Present' ? periodCount : 0;
+    const absentPeriods = rec.status === 'Absent' ? periodCount : 0;
+
+    // Prevent duplicate entries for same student, date, session, subject
     const existingIndex = mockStore.attendance.findIndex(
       a => a.student_id === rec.studentId && a.attendance_date === date && a.session === session && a.subject === subject
     );
 
     if (existingIndex !== -1) {
       mockStore.attendance[existingIndex].status = rec.status;
+      mockStore.attendance[existingIndex].periods = periodCount;
+      mockStore.attendance[existingIndex].present_periods = presentPeriods;
+      mockStore.attendance[existingIndex].absent_periods = absentPeriods;
+      mockStore.attendance[existingIndex].marked_by = markedBy;
     } else {
       mockStore.attendance.push({
         id: mockStore.attendance.length + 1,
@@ -76,7 +88,10 @@ export const submitAttendance = async (req, res) => {
         attendance_date: date,
         session,
         status: rec.status,
-        marked_by: markedBy
+        marked_by: markedBy,
+        periods: periodCount,
+        present_periods: presentPeriods,
+        absent_periods: absentPeriods
       });
     }
 
@@ -99,13 +114,14 @@ export const submitAttendance = async (req, res) => {
 
   return res.json({
     success: true,
-    message: `Attendance submitted successfully for ${records.length} students!`,
+    message: `Attendance submitted successfully for ${records.length} students (${session} session - ${periodCount} periods)!`,
     smsSentCount: smsDispatches.length
   });
 };
 
 /**
- * Fetch attendance for currently logged-in student
+ * Fetch attendance for currently logged-in student (Read-only for students)
+ * Calculates period-wise daily and monthly attendance stats
  */
 export const getStudentAttendance = async (req, res) => {
   const userId = req.user.id;
@@ -153,38 +169,43 @@ export const getStudentAttendance = async (req, res) => {
     );
   }
 
-  const totalClasses = records.length;
-  const presentCount = records.filter(r => r.status === 'Present').length;
-  const absentCount = records.filter(r => r.status === 'Absent').length;
-  const percentage = totalClasses > 0 ? ((presentCount / totalClasses) * 100).toFixed(1) : 100;
+  // Attach period-wise counts to each record
+  let totalScheduledPeriods = 0;
+  let totalPresentPeriods = 0;
+  let totalAbsentPeriods = 0;
 
-  // Subject-wise summary
-  const subjectMap = {};
-  records.forEach(r => {
-    if (!subjectMap[r.subject]) {
-      subjectMap[r.subject] = { subject: r.subject, total: 0, present: 0, absent: 0 };
-    }
-    subjectMap[r.subject].total += 1;
-    if (r.status === 'Present') subjectMap[r.subject].present += 1;
-    else subjectMap[r.subject].absent += 1;
+  const processedRecords = records.map(r => {
+    const periodCount = r.periods || (r.session === 'Morning' ? 4 : 3);
+    const presentPeriods = r.present_periods !== undefined ? r.present_periods : (r.status === 'Present' ? periodCount : 0);
+    const absentPeriods = r.absent_periods !== undefined ? r.absent_periods : (r.status === 'Absent' ? periodCount : 0);
+
+    totalScheduledPeriods += periodCount;
+    totalPresentPeriods += presentPeriods;
+    totalAbsentPeriods += absentPeriods;
+
+    return {
+      ...r,
+      periods: periodCount,
+      present_periods: presentPeriods,
+      absent_periods: absentPeriods
+    };
   });
 
-  const subjectWise = Object.values(subjectMap).map(s => ({
-    ...s,
-    percentage: s.total > 0 ? ((s.present / s.total) * 100).toFixed(1) : 100
-  }));
+  const percentage = totalScheduledPeriods > 0 
+    ? ((totalPresentPeriods / totalScheduledPeriods) * 100).toFixed(2) 
+    : '100.00';
 
   return res.json({
     success: true,
     student,
     summary: {
-      totalClasses,
-      presentCount,
-      absentCount,
+      totalClasses: processedRecords.length,
+      totalScheduledPeriods,
+      presentPeriods: totalPresentPeriods,
+      absentPeriods: totalAbsentPeriods,
       percentage: Number(percentage)
     },
-    subjectWise,
-    history: records
+    history: processedRecords
   });
 };
 

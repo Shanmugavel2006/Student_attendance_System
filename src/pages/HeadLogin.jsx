@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Key, Mail, ArrowLeft, AlertCircle, Sparkles } from 'lucide-react';
+import { ShieldCheck, Key, Mail, ArrowLeft, AlertCircle } from 'lucide-react';
 
 export default function HeadLogin() {
   const [email, setEmail] = useState('');
@@ -29,10 +29,6 @@ export default function HeadLogin() {
     }
   };
 
-  const fillDemo = () => {
-    setEmail('head@college.edu');
-    setPassword('head');
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden font-sans">
@@ -46,9 +42,9 @@ export default function HeadLogin() {
       <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-red-500/15 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="w-full max-w-md relative z-10">
-        <Link to="/" className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-red-600 mb-6 transition">
-          <ArrowLeft className="w-4 h-4" /> Back to Role Selection
-        </Link>
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-red-600 mb-6 transition">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
 
         <div className="bg-white/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl shadow-red-900/5 border border-slate-200 relative overflow-hidden">
           <div className="w-14 h-14 rounded-2xl bg-red-600 text-white flex items-center justify-center mb-6 shadow-md shadow-red-600/30">
@@ -109,17 +105,7 @@ export default function HeadLogin() {
             </button>
           </form>
 
-          {/* Quick Demo Credentials */}
-          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-medium">Need Demo Credentials?</span>
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="text-red-600 hover:text-red-700 font-bold flex items-center gap-1 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 transition"
-            >
-              <Sparkles className="w-3.5 h-3.5" /> Auto-fill Demo Head
-            </button>
-          </div>
+
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { GraduationCap, Key, User, ArrowLeft, AlertCircle, Sparkles } from 'lucide-react';
+import { GraduationCap, Key, User, ArrowLeft, AlertCircle } from 'lucide-react';
 
 export default function StudentLogin() {
   const [registerNumber, setRegisterNumber] = useState('');
@@ -29,10 +29,6 @@ export default function StudentLogin() {
     }
   };
 
-  const fillDemo = () => {
-    setRegisterNumber('2023CSE001');
-    setPassword('student123');
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden font-sans">
@@ -46,9 +42,9 @@ export default function StudentLogin() {
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/15 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="w-full max-w-md relative z-10">
-        <Link to="/" className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 mb-6 transition">
-          <ArrowLeft className="w-4 h-4" /> Back to Role Selection
-        </Link>
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 mb-6 transition">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
 
         <div className="bg-white/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl shadow-blue-900/5 border border-slate-200 relative overflow-hidden">
           <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mb-6 shadow-md shadow-blue-600/30">
@@ -109,17 +105,7 @@ export default function StudentLogin() {
             </button>
           </form>
 
-          {/* Quick Demo Credentials */}
-          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-medium">Need Demo Credentials?</span>
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 transition"
-            >
-              <Sparkles className="w-3.5 h-3.5" /> Auto-fill Demo Student
-            </button>
-          </div>
+
         </div>
       </div>
     </div>

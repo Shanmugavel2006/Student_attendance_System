@@ -82,16 +82,33 @@ export default function StaffDashboard() {
     }
   }, [classConfirmed]);
 
-  // ========= TIME WINDOW CHECK =========
-  // Attendance can only be marked during Morning (9:00-10:00) or Afternoon (13:50-14:30)
+  // ========= TIME WINDOW CHECK (Requirement 1) =========
+  // Attendance can only be marked during Morning (9:30 AM - 10:30 AM) or Afternoon (1:30 PM - 2:30 PM)
   const isWithinWindow = (() => {
     if (demoBypassTime) return true; // bypass for testing
     const now = new Date();
     const mins = now.getHours() * 60 + now.getMinutes();
-    const morningOk = mins >= 9 * 60 && mins <= 10 * 60;
-    const afternoonOk = mins >= 13 * 60 + 50 && mins <= 14 * 60 + 30;
+    const morningOk = mins >= (9 * 60 + 30) && mins <= (10 * 60 + 30);
+    const afternoonOk = mins >= (13 * 60 + 30) && mins <= (14 * 60 + 30);
     return morningOk || afternoonOk;
   })();
+
+  const getTimeRestrictionMessage = () => {
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const morningStart = 9 * 60 + 30;   // 9:30 AM
+    const morningEnd = 10 * 60 + 30;    // 10:30 AM
+    const afternoonStart = 13 * 60 + 30; // 1:30 PM
+    const afternoonEnd = 14 * 60 + 30;   // 2:30 PM
+
+    if (mins < morningStart) {
+      return "Attendance is currently closed. The morning attendance session will open at 9:30 AM.";
+    }
+    if (mins > morningEnd && mins < afternoonStart) {
+      return "Attendance is currently closed. The afternoon attendance session will open at 1:30 PM.";
+    }
+    return "Today's attendance is closed. Attendance will open tomorrow at 9:30 AM.";
+  };
 
   const handleConfirmClass = () => {
     setClassConfirmed(true);

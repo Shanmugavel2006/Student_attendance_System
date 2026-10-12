@@ -23,9 +23,6 @@ function ProtectedRoute({ children, allowedRole }) {
   }
 
   if (!user) {
-    if (allowedRole === 'student') return <Navigate to="/login/student" replace />;
-    if (allowedRole === 'staff') return <Navigate to="/login/staff" replace />;
-    if (allowedRole === 'head') return <Navigate to="/login/head" replace />;
     return <Navigate to="/" replace />;
   }
 
@@ -41,7 +38,7 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Role Portal Landing Page */}
+          {/* Main Landing Page with Department Login -> Role Cards Landing Page */}
           <Route path="/" element={<LandingPage />} />
 
           {/* Dedicated Login Pages */}
